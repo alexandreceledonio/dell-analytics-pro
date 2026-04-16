@@ -4,9 +4,16 @@ import plotly.express as px
 import plotly.graph_objects as go
 import os
 
-# --- CONFIGURAÇÕES ---
+# --- CONFIGURAÇÕES DE CAMINHO BLINDADAS ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-EQUIPE_DIR = os.path.join(BASE_DIR, "Equipe")
+
+# Esta lógica tenta encontrar a pasta 'equipe' de duas formas para garantir
+if os.path.exists(os.path.join(BASE_DIR, "equipe")):
+    EQUIPE_DIR = os.path.join(BASE_DIR, "equipe")
+else:
+    # Caso o Streamlit monte o diretório de forma diferente
+    EQUIPE_DIR = os.path.join(os.getcwd(), "equipe")
+
 LOGO_PATH = os.path.join(BASE_DIR, "dell_logo.png")
 
 st.set_page_config(layout="wide", page_title="Dell QA Analytics Pro", page_icon="📊")
