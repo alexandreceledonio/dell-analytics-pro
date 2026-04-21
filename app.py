@@ -4,16 +4,9 @@ import plotly.express as px
 import plotly.graph_objects as go
 import os
 
-# --- CONFIGURAÇÕES DE CAMINHO BLINDADAS ---
+# --- CONFIGURAÇÕES ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# Esta lógica tenta encontrar a pasta 'equipe' de duas formas para garantir
-if os.path.exists(os.path.join(BASE_DIR, "equipe")):
-    EQUIPE_DIR = os.path.join(BASE_DIR, "equipe")
-else:
-    # Caso o Streamlit monte o diretório de forma diferente
-    EQUIPE_DIR = os.path.join(os.getcwd(), "equipe")
-
+EQUIPE_DIR = os.path.join(BASE_DIR, "Equipe")
 LOGO_PATH = os.path.join(BASE_DIR, "dell_logo.png")
 
 st.set_page_config(layout="wide", page_title="Dell QA Analytics Pro", page_icon="📊")
@@ -63,8 +56,7 @@ if not st.session_state.logado:
         st.button("Entrar", on_click=realizar_login)
     st.stop() 
 
-# --- DASHBOARD (APÓS LOGIN) ---
-
+# --- CONSTANTES ---
 DELL_BLUE = "#0076CE"
 MESES_ORDEM = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
 
@@ -77,7 +69,6 @@ st.markdown(f"""
     .stTabs [data-baseweb="tab"] {{ height: 60px; font-weight: 800 !important; font-size: 22px !important; color: #64748B; }}
     .stTabs [aria-selected="true"] {{ color: {DELL_BLUE} !important; border-bottom: 4px solid {DELL_BLUE} !important; }}
     
-    /* BARRA DE INSTRUÇÃO COM IDENTIFICAÇÃO */
     .header-instruction {{ 
         background: #F3F4F6; padding: 15px; border-radius: 12px; border-left: 5px solid {DELL_BLUE}; 
         margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;
@@ -138,7 +129,6 @@ def carregar_dados_colaborador(nome_arquivo):
         df_foc['Suporte'] = pd.to_numeric(df_full['Suporte_Solicitado'], errors='coerce').fillna(0)
         df_foc['Atestados'] = pd.to_numeric(df_full['Atestados'], errors='coerce').fillna(0)
         
-        # NOVAS COLUNAS COM PROTEÇÃO (CASO NÃO EXISTAM NO EXCEL)
         for col in ['Retornos', 'Acoes_Sociais', 'Horas_Voluntariado']:
             if col in df_full.columns:
                 df_foc[col] = pd.to_numeric(df_full[col], errors='coerce').fillna(0)
@@ -165,12 +155,13 @@ def carregar_dados_equipe_completa():
                 all_data.append(df)
     return pd.concat(all_data) if all_data else pd.DataFrame()
 
-def get_status_color(pos, media, txt="", obs=""):
+def get_status_color(pos, media, txt="", obs="", total_ativos=38):
     comb = (str(txt) + str(obs)).lower()
     if any(x in comb for x in ["férias", "ferias", "atestado", "licença"]): return "#94A3B8"
     if pos == 0 or media == 0: return "#94A3B8"
+    
     if 1 <= pos <= 8: return "#10B981"
-    if pos >= 35: return "#EF4444"
+    if pos > (total_ativos - 4): return "#EF4444"
     return "#F59E0B"
 
 def render_premium_card(label, pos, media, trend_val="", delta=0, color="#94A3B8", txt="", obs=""):
@@ -183,9 +174,16 @@ def render_premium_card(label, pos, media, trend_val="", delta=0, color="#94A3B8
     elif pos == 0 or media == 0: val_display, trend_html = " - ", ""
     else:
         val_display = f"{int(pos)}º"
-        if trend_val == "up" and delta > 0: trend_html = f'<span class="trend-badge trend-up">↑ {int(delta)}</span>'
-        elif trend_val == "down" and delta > 0: trend_html = f'<span class="trend-badge trend-down">↓ {int(delta)}</span>'
-        else: trend_html = ""
+        if trend_val == "up" and delta > 0: 
+            trend_html = f'<span class="trend-badge trend-up">↑ {int(delta)}</span>'
+        elif trend_val == "down" and delta > 0: 
+            trend_html = f'<span class="trend-badge trend-down">↓ {int(delta)}</span>'
+        elif trend_val == "stable": 
+            bg_color = color + "22" 
+            trend_html = f'<span class="trend-badge" style="background: {bg_color} !important; color: {color} !important; border: 1px solid {color};">=</span>'
+        else: 
+            trend_html = "" 
+            
     st.markdown(f"""<div class="card-premium"><div class="status-bar" style="background-color: {color};"></div><div class="card-content"><div class="card-label">{label}</div><div class="card-value">{val_display} {trend_html}</div><div class="card-footer">Média: {media:.2f}</div></div></div>""", unsafe_allow_html=True)
 
 # --- INTERFACE ---
@@ -203,7 +201,6 @@ with aba_individual:
     with c3:
         mes_sel_ind = st.selectbox("📅 Mês de Análise", MESES_ORDEM, index=0, key="f_mes_ind")
 
-    # BARRA DE INSTRUÇÃO COM IDENTIFICAÇÃO DO USUÁRIO LOGADO
     st.markdown(f'''
         <div class="header-instruction">
             <span style="font-size: 20px; color: {DELL_BLUE}; font-weight: 800;">Dell QA Analytics Pro</span>
@@ -232,13 +229,18 @@ with aba_individual:
                 st.markdown(f'<div class="welcome-card"><div class="welcome-card-title">♿ PCD por Categoria</div>{html_p if html_p else "Sem registros."}</div>', unsafe_allow_html=True)
             with w4:
                 rank_d = df_master.groupby('Nome_Exibicao').apply(lambda x: x['Pontos'].sum()/x['Dias'].sum() if x['Dias'].sum()>0 else 0).sort_values().reset_index()
-                ultimos = rank_d[rank_d[0]>0].head(4)
-                html_r = "".join([f'<div class="list-item"><span style="color:#EF4444;">{n[:18]}</span><b>{v:.2f}</b></div>' for n,v in zip(ultimos['Nome_Exibicao'], ultimos[0])])
+                rank_d.columns = ['Nome_Exibicao', 'Media']
+                ultimos = rank_d[rank_d['Media'] > 0].head(4).copy()
+                ultimos = ultimos.sort_values(by='Media', ascending=False)
+                html_r = "".join([f'<div class="list-item"><span style="color:#EF4444;">{n[:18]}</span><b>{v:.2f}</b></div>' for n,v in zip(ultimos['Nome_Exibicao'], ultimos['Media'])])
                 st.markdown(f'<div class="welcome-card"><div class="welcome-card-title">⚠️ Últimos do Ranking Geral</div>{html_r}</div>', unsafe_allow_html=True)
     else:
-        # INDIVIDUAL
         df_ind, nome_f, badge, turma, pcd = carregar_dados_colaborador(mapa_arq[colab_sel])
         if df_ind is not None:
+            df_mes_total = df_master[df_master['Mês'] == mes_sel_ind.capitalize()].copy()
+            df_mes_total['is_cinza'] = df_mes_total.apply(lambda r: any(x in (str(r['Pos_Mes_Txt'])+str(r['Obs'])).lower() for x in ["férias","ferias","atestado","licença"]), axis=1)
+            total_ativos_mes = len(df_mes_total[~df_mes_total['is_cinza']])
+            
             l_atu = df_ind[df_ind['Mês'] == mes_sel_ind.capitalize()]
             if not l_atu.empty:
                 row = l_atu.iloc[0]; idx = MESES_ORDEM.index(mes_sel_ind)
@@ -246,48 +248,76 @@ with aba_individual:
                 m_g = df_ac['Pontos'].sum() / df_ac['Dias'].sum() if df_ac['Dias'].sum() > 0 else 0
                 m_m = row['Pontos'] / row['Dias'] if row['Dias'] > 0 else 0
                 
-                # Tendências
+                # --- LÓGICA DE TENDÊNCIAS REFINADA ---
                 t_m, d_m, t_g, d_g = "", 0, "", 0
                 if idx > 0:
                     l_ant = df_ind[df_ind['Mês'] == MESES_ORDEM[idx-1].capitalize()]
                     if not l_ant.empty:
                         ant = l_ant.iloc[0]
-                        if ant['Pos_Mes']>0 and row['Pos_Mes']>0:
-                            d_m = abs(row['Pos_Mes']-ant['Pos_Mes']); t_m = "up" if row['Pos_Mes'] < ant['Pos_Mes'] else "down" if row['Pos_Mes'] > ant['Pos_Mes'] else ""
-                        if ant['Pos_Geral']>0 and row['Pos_Geral']>0:
-                            d_g = abs(row['Pos_Geral']-ant['Pos_Geral']); t_g = "up" if row['Pos_Geral'] < ant['Pos_Geral'] else "down" if row['Pos_Geral'] > ant['Pos_Geral'] else ""
+                        # Mensal
+                        if ant['Pos_Mes'] > 0 and row['Pos_Mes'] > 0:
+                            if row['Pos_Mes'] < ant['Pos_Mes']:
+                                d_m = abs(row['Pos_Mes'] - ant['Pos_Mes']); t_m = "up"
+                            elif row['Pos_Mes'] > ant['Pos_Mes']:
+                                d_m = abs(row['Pos_Mes'] - ant['Pos_Mes']); t_m = "down"
+                            else:
+                                d_m = 0; t_m = "stable"
+                        # Geral
+                        if ant['Pos_Geral'] > 0 and row['Pos_Geral'] > 0:
+                            if row['Pos_Geral'] < ant['Pos_Geral']:
+                                d_g = abs(row['Pos_Geral'] - ant['Pos_Geral']); t_g = "up"
+                            elif row['Pos_Geral'] > ant['Pos_Geral']:
+                                d_g = abs(row['Pos_Geral'] - ant['Pos_Geral']); t_g = "down"
+                            else:
+                                d_g = 0; t_g = "stable"
 
                 st.markdown(f"<h1 style='color:{DELL_BLUE}; font-weight:800;'>{nome_f}</h1>", unsafe_allow_html=True)
                 st.markdown(f'<div><span class="info-tag">🆔 {badge}</span><span class="info-tag">👥 {turma}</span></div>', unsafe_allow_html=True)
                 st.divider()
 
                 ca1, ca2, ca3 = st.columns([2, 2, 1.3])
-                with ca1: render_premium_card("Ranking Mensal", row['Pos_Mes'], m_m, t_m, d_m, get_status_color(row['Pos_Mes'], m_m, row['Pos_Mes_Txt'], row['Obs']), row['Pos_Mes_Txt'], row['Obs'])
-                with ca2: render_premium_card("Ranking Geral (Acumulado)", row['Pos_Geral'], m_g, t_g, d_g, get_status_color(row['Pos_Geral'], m_g, row['Pos_Geral_Txt'], row['Obs']), row['Pos_Geral_Txt'], row['Obs'])
+                with ca1: render_premium_card("Ranking Mensal", row['Pos_Mes'], m_m, t_m, d_m, get_status_color(row['Pos_Mes'], m_m, row['Pos_Mes_Txt'], row['Obs'], total_ativos_mes), row['Pos_Mes_Txt'], row['Obs'])
+                with ca2: render_premium_card("Ranking Geral (Acumulado)", row['Pos_Geral'], m_g, t_g, d_g, get_status_color(row['Pos_Geral'], m_g, row['Pos_Geral_Txt'], row['Obs'], total_ativos_mes), row['Pos_Geral_Txt'], row['Obs'])
                 with ca3:
+                    acum_retornos = df_ind["Retornos"].sum()
+                    acum_sociais = df_ind["Acoes_Sociais"].sum()
+                    acum_volunt = df_ind["Horas_Voluntariado"].sum()
+                    acum_suporte = df_ind["Suporte"].sum()
                     st.markdown(f'<div class="pill-box"><span>📅 Dias (Mês / Ano)</span><b>{int(row["Dias"])} / {int(df_ind["Dias"].sum())}</b></div>', unsafe_allow_html=True)
-                    st.markdown(f'<div class="pill-box"><span>🔄 Casos Retornos</span><b>{int(row["Retornos"])}</b></div>', unsafe_allow_html=True)
-                    st.markdown(f'<div class="pill-box"><span>🤝 Ações Sociais</span><b>{int(row["Acoes_Sociais"])}</b></div>', unsafe_allow_html=True)
-                    st.markdown(f'<div class="pill-box"><span>⏳ Voluntariado (h)</span><b>{int(row["Horas_Voluntariado"])}h</b></div>', unsafe_allow_html=True)
-                    st.markdown(f'<div class="pill-box"><span>🛠️ Suporte Solicitado</span><b>{int(row["Suporte"])}</b></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="pill-box"><span>🔄 Casos Retornos</span><b>{int(row["Retornos"])} / {int(acum_retornos)}</b></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="pill-box"><span>🤝 Ações Sociais</span><b>{int(row["Acoes_Sociais"])} / {int(acum_sociais)}</b></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="pill-box"><span>⏳ Voluntariado (h)</span><b>{int(row["Horas_Voluntariado"])}h / {int(acum_volunt)}h</b></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="pill-box"><span>🛠️ Suporte Solicitado</span><b>{int(row["Suporte"])} / {int(acum_suporte)}</b></div>', unsafe_allow_html=True)
 
                 st.divider()
-                # 4 GRÁFICOS
                 df_graf = df_ind[df_ind['Pontos']>0].copy()
                 df_graf['Mês'] = pd.Categorical(df_graf['Mês'], categories=MESES_ORDEM, ordered=True)
                 df_graf = df_graf.sort_values('Mês')
                 
+                # --- HISTÓRICO DE CORES NOS GRÁFICOS ---
+                def obter_cores_grafico(df_grafico, coluna_posicao):
+                    lista_cores = []
+                    for _, linha_ponto in df_grafico.iterrows():
+                        mes_ponto = linha_ponto['Mês']
+                        df_ref = df_master[df_master['Mês'] == mes_ponto].copy()
+                        df_ref['is_cinza'] = df_ref.apply(lambda r: any(x in (str(r['Pos_Mes_Txt'])+str(r['Obs'])).lower() for x in ["férias","ferias","atestado","licença"]), axis=1)
+                        total_ativos_naquele_mes = len(df_ref[~df_ref['is_cinza']])
+                        cor_ponto = get_status_color(linha_ponto[coluna_posicao], linha_ponto['Pontos'], linha_ponto['Pos_Mes_Txt'], linha_ponto['Obs'], total_ativos_naquele_mes)
+                        lista_cores.append(cor_ponto)
+                    return lista_cores
+
+                clrs1 = obter_cores_grafico(df_graf, 'Pos_Mes')
+                clrs2 = obter_cores_grafico(df_graf, 'Pos_Geral')
+
                 f_s = dict(size=15, color="black", family="Arial Black")
                 r1, r2 = st.columns(2)
                 with r1:
                     fig1 = go.Figure()
-                    clrs1 = [get_status_color(p, m, r, o) for p, m, r, o in zip(df_graf['Pos_Mes'], df_graf['Pontos'], df_graf['Pos_Mes_Txt'], df_graf['Obs'])]
                     fig1.add_trace(go.Scatter(x=df_graf['Mês'], y=df_graf['Pos_Mes'], mode='markers+lines+text', text=df_graf['Pos_Mes'].astype(int), textposition="top right", textfont=f_s, marker=dict(size=12, color=clrs1, line=dict(width=2, color="white")), cliponaxis=False))
                     fig1.update_yaxes(autorange="reversed", range=[df_graf['Pos_Mes'].max()+3, 1]); fig1.update_xaxes(categoryorder='array', categoryarray=MESES_ORDEM, range=[-0.5, 11.5])
                     fig1.update_layout(plot_bgcolor='white', title="Evolução Ranking Mensal", height=380); st.plotly_chart(fig1, use_container_width=True)
                 with r2:
                     fig2 = go.Figure()
-                    clrs2 = [get_status_color(p, m, r, o) for p, m, r, o in zip(df_graf['Pos_Geral'], df_graf['Pontos'], df_graf['Pos_Geral_Txt'], df_graf['Obs'])]
                     fig2.add_trace(go.Scatter(x=df_graf['Mês'], y=df_graf['Pos_Geral'], mode='markers+lines+text', text=df_graf['Pos_Geral'].astype(int), textposition="top right", textfont=f_s, marker=dict(size=12, color=clrs2, line=dict(width=2, color="white")), cliponaxis=False))
                     fig2.update_yaxes(autorange="reversed", range=[df_graf['Pos_Geral'].max()+3, 1]); fig2.update_xaxes(categoryorder='array', categoryarray=MESES_ORDEM, range=[-0.5, 11.5])
                     fig2.update_layout(plot_bgcolor='white', title="Evolução Ranking Geral", height=380); st.plotly_chart(fig2, use_container_width=True)
@@ -298,8 +328,8 @@ with aba_individual:
                     fig3.update_traces(textposition="top right", textfont=f_s, line_color=DELL_BLUE, cliponaxis=False); fig3.update_xaxes(categoryorder='array', categoryarray=MESES_ORDEM, range=[-0.5, 11.5])
                     fig3.update_layout(plot_bgcolor='white', height=380); st.plotly_chart(fig3, use_container_width=True)
                 with g2:
-                    fig4 = px.bar(df_graf, x='Mês', y='Casos', text='Casos', title="Volume de Casos")
-                    fig4.update_traces(marker_color=DELL_BLUE, textfont=f_s, textposition="outside", cliponaxis=False); fig4.update_xaxes(categoryorder='array', categoryarray=MESES_ORDEM, range=[-0.5, 11.5])
+                    fig4 = px.line(df_graf, x='Mês', y='Casos', markers=True, text='Casos', title="Volume de Casos")
+                    fig4.update_traces(line_color=DELL_BLUE, textposition="top right", textfont=f_s, cliponaxis=False); fig4.update_xaxes(categoryorder='array', categoryarray=MESES_ORDEM, range=[-0.5, 11.5])
                     fig4.update_layout(plot_bgcolor='white', height=380); st.plotly_chart(fig4, use_container_width=True)
 
 # --- ABA 2 ---
