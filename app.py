@@ -7,6 +7,10 @@ import os
 # --- CONFIGURAÇÕES ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 EQUIPE_DIR = os.path.join(BASE_DIR, "Equipe")
+
+# Adicione esta verificação de segurança logo abaixo:
+if not os.path.exists(EQUIPE_DIR):
+    os.makedirs(EQUIPE_DIR)
 LOGO_PATH = os.path.join(BASE_DIR, "dell_logo.png")
 
 st.set_page_config(layout="wide", page_title="Dell QA Analytics Pro", page_icon="📊")
