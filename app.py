@@ -4,15 +4,15 @@ import plotly.express as px
 import plotly.graph_objects as go
 import os
 
-# --- CONFIGURAÇÕES DE CAMINHO RESILIENTES ---
+# --- CONFIGURAÇÕES DE CAMINHO BLINDADAS (SINCRO COM GITHUB) ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# Forçamos o caminho para garantir que o Streamlit Cloud encontre a pasta
-EQUIPE_DIR = os.path.join(BASE_DIR, "Equipe")
-LOGO_PATH = os.path.join(BASE_DIR, "dell_logo.png")
 
-# Verificação de segurança: Se a pasta não existir no servidor, criamos ela (vazia) para não travar o app
-if not os.path.exists(EQUIPE_DIR):
-    os.makedirs(EQUIPE_DIR)
+if os.path.exists(os.path.join(BASE_DIR, "equipe")):
+    EQUIPE_DIR = os.path.join(BASE_DIR, "equipe")
+else:
+    EQUIPE_DIR = os.path.join(os.getcwd(), "equipe")
+
+LOGO_PATH = os.path.join(BASE_DIR, "dell_logo.png")
 
 st.set_page_config(layout="wide", page_title="Dell QA Analytics Pro", page_icon="📊")
 
@@ -153,8 +153,7 @@ def carregar_dados_colaborador(nome_arquivo):
 def carregar_dados_equipe_completa():
     all_data = []
     if os.path.exists(EQUIPE_DIR):
-        arquivos = [f for f in os.listdir(EQUIPE_DIR) if f.endswith(".xlsx")]
-        for arq in arquivos:
+        for arq in [f for f in os.listdir(EQUIPE_DIR) if f.endswith(".xlsx")]:
             df, n, b, t, p = carregar_dados_colaborador(arq)
             if df is not None:
                 df['Nome_Exibicao'] = n; df['Turma_Exibicao'] = t; df['PCD_Tipo'] = p
@@ -186,8 +185,7 @@ def render_premium_card(label, pos, media, trend_val="", delta=0, color="#94A3B8
         elif trend_val == "stable": 
             bg_color = color + "22"
             trend_html = f'<span class="trend-badge" style="background: {bg_color} !important; color: {color} !important; border: 1px solid {color};">=</span>'
-        else: 
-            trend_html = "" 
+        else: trend_html = ""
             
     st.markdown(f"""<div class="card-premium"><div class="status-bar" style="background-color: {color};"></div><div class="card-content"><div class="card-label">{label}</div><div class="card-value">{val_display} {trend_html}</div><div class="card-footer">Média: {media:.2f}</div></div></div>""", unsafe_allow_html=True)
 
@@ -202,11 +200,7 @@ with aba_individual:
     with c2:
         arquivos_ind = sorted([f for f in os.listdir(EQUIPE_DIR) if f.endswith(".xlsx")])
         mapa_arq = {f.replace(".xlsx", "").replace("_", " ").title(): f for f in arquivos_ind}
-        if not mapa_arq:
-            st.warning("⚠️ Nenhuma planilha encontrada na pasta 'Equipe'.")
-            colab_sel = "Selecione..."
-        else:
-            colab_sel = st.selectbox("👤 Selecionar Colaborador", ["Selecione..."] + list(mapa_arq.keys()), key="f_colab")
+        colab_sel = st.selectbox("👤 Selecionar Colaborador", ["Selecione..."] + list(mapa_arq.keys()), key="f_colab")
     with c3:
         mes_sel_ind = st.selectbox("📅 Mês de Análise", MESES_ORDEM, index=0, key="f_mes_ind")
 
@@ -239,18 +233,18 @@ with aba_individual:
             with w4:
                 rank_d = df_master.groupby('Nome_Exibicao').apply(lambda x: x['Pontos'].sum()/x['Dias'].sum() if x['Dias'].sum()>0 else 0).sort_values().reset_index()
                 rank_d.columns = ['Nome_Exibicao', 'Media']
-                ultimos = rank_d[rank_d['Media'] > 0].head(4).copy()
+                ultimos = rank_d[rank_d['Media']>0].head(4).copy()
                 ultimos = ultimos.sort_values(by='Media', ascending=False)
                 html_r = "".join([f'<div class="list-item"><span style="color:#EF4444;">{n[:18]}</span><b>{v:.2f}</b></div>' for n,v in zip(ultimos['Nome_Exibicao'], ultimos['Media'])])
                 st.markdown(f'<div class="welcome-card"><div class="welcome-card-title">⚠️ Últimos do Ranking Geral</div>{html_r}</div>', unsafe_allow_html=True)
     else:
         df_ind, nome_f, badge, turma, pcd = carregar_dados_colaborador(mapa_arq[colab_sel])
         if df_ind is not None:
-            # Cálculo dinâmico de ativos do mês para regra de cores
+            # Cálculo de ativos do mês para cores
             df_mes_total = df_master[df_master['Mês'] == mes_sel_ind.capitalize()].copy()
             df_mes_total['is_cinza'] = df_mes_total.apply(lambda r: any(x in (str(r['Pos_Mes_Txt'])+str(r['Obs'])).lower() for x in ["férias","ferias","atestado","licença"]), axis=1)
             total_ativos_mes = len(df_mes_total[~df_mes_total['is_cinza']])
-            
+
             l_atu = df_ind[df_ind['Mês'] == mes_sel_ind.capitalize()]
             if not l_atu.empty:
                 row = l_atu.iloc[0]; idx = MESES_ORDEM.index(mes_sel_ind)
@@ -264,11 +258,11 @@ with aba_individual:
                     l_ant = df_ind[df_ind['Mês'] == MESES_ORDEM[idx-1].capitalize()]
                     if not l_ant.empty:
                         ant = l_ant.iloc[0]
-                        if ant['Pos_Mes'] > 0 and row['Pos_Mes'] > 0:
+                        if ant['Pos_Mes']>0 and row['Pos_Mes']>0:
                             if row['Pos_Mes'] < ant['Pos_Mes']: d_m = abs(row['Pos_Mes']-ant['Pos_Mes']); t_m = "up"
                             elif row['Pos_Mes'] > ant['Pos_Mes']: d_m = abs(row['Pos_Mes']-ant['Pos_Mes']); t_m = "down"
                             else: d_m = 0; t_m = "stable"
-                        if ant['Pos_Geral'] > 0 and row['Pos_Geral'] > 0:
+                        if ant['Pos_Geral']>0 and row['Pos_Geral']>0:
                             if row['Pos_Geral'] < ant['Pos_Geral']: d_g = abs(row['Pos_Geral']-ant['Pos_Geral']); t_g = "up"
                             elif row['Pos_Geral'] > ant['Pos_Geral']: d_g = abs(row['Pos_Geral']-ant['Pos_Geral']); t_g = "down"
                             else: d_g = 0; t_g = "stable"
@@ -279,7 +273,7 @@ with aba_individual:
 
                 ca1, ca2, ca3 = st.columns([2, 2, 1.3])
                 with ca1: render_premium_card("Ranking Mensal", row['Pos_Mes'], m_m, t_m, d_m, get_status_color(row['Pos_Mes'], m_m, row['Pos_Mes_Txt'], row['Obs'], total_ativos_mes), row['Pos_Mes_Txt'], row['Obs'])
-                with ca2: render_premium_card("Ranking Geral", row['Pos_Geral'], m_g, t_g, d_g, get_status_color(row['Pos_Geral'], m_g, row['Pos_Geral_Txt'], row['Obs'], total_ativos_mes), row['Pos_Geral_Txt'], row['Obs'])
+                with ca2: render_premium_card("Ranking Geral (Acumulado)", row['Pos_Geral'], m_g, t_g, d_g, get_status_color(row['Pos_Geral'], m_g, row['Pos_Geral_Txt'], row['Obs'], total_ativos_mes), row['Pos_Geral_Txt'], row['Obs'])
                 with ca3:
                     acum_retornos = df_ind["Retornos"].sum()
                     acum_sociais = df_ind["Acoes_Sociais"].sum()
@@ -296,15 +290,15 @@ with aba_individual:
                 df_graf['Mês'] = pd.Categorical(df_graf['Mês'], categories=MESES_ORDEM, ordered=True)
                 df_graf = df_graf.sort_values('Mês')
                 
-                # Cores históricas
-                def obter_cores_grafico(df_grafico, coluna_posicao):
+                # Cores histórico
+                def obter_cores_grafico(df_grafico, coluna):
                     lista = []
                     for _, lin in df_grafico.iterrows():
                         m_ref = lin['Mês']
                         df_ref = df_master[df_master['Mês'] == m_ref].copy()
                         df_ref['is_cinza'] = df_ref.apply(lambda r: any(x in (str(r['Pos_Mes_Txt'])+str(r['Obs'])).lower() for x in ["férias","ferias","atestado","licença"]), axis=1)
                         atv = len(df_ref[~df_ref['is_cinza']])
-                        lista.append(get_status_color(lin[coluna_posicao], lin['Pontos'], lin['Pos_Mes_Txt'], lin['Obs'], atv))
+                        lista.append(get_status_color(lin[coluna], lin['Pontos'], lin['Pos_Mes_Txt'], lin['Obs'], atv))
                     return lista
 
                 clrs1 = obter_cores_grafico(df_graf, 'Pos_Mes')
