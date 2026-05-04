@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import os
+import time
 
 # --- CONFIGURAÇÕES DE CAMINHO BLINDADAS (SINCRO COM GITHUB) ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -192,6 +193,7 @@ def render_premium_card(label, pos, media, trend_val="", delta=0, color="#94A3B8
 # --- INTERFACE ---
 
 aba_individual, aba_equipe = st.tabs(["👤 Performance Individual", "👥 Panorama da Equipe"])
+df_master = carregar_dados_equipe_completa()
 
 with aba_individual:
     c1, c2, c3 = st.columns([2.5, 2, 2])
@@ -210,8 +212,6 @@ with aba_individual:
             <span class="user-tag">👤 Usuário: {st.session_state.usuario_identificado.title()}</span>
         </div>
     ''', unsafe_allow_html=True)
-
-    df_master = carregar_dados_equipe_completa()
 
     if colab_sel == "Selecione...":
         if not df_master.empty:
@@ -240,10 +240,11 @@ with aba_individual:
     else:
         df_ind, nome_f, badge, turma, pcd = carregar_dados_colaborador(mapa_arq[colab_sel])
         if df_ind is not None:
-            # Cálculo de ativos do mês para cores
+            # BLINDAGEM ALESSANDRA: Ativos dinâmicos para o Mensal, Time completo (38) para o Geral
             df_mes_total = df_master[df_master['Mês'] == mes_sel_ind.capitalize()].copy()
             df_mes_total['is_cinza'] = df_mes_total.apply(lambda r: any(x in (str(r['Pos_Mes_Txt'])+str(r['Obs'])).lower() for x in ["férias","ferias","atestado","licença"]), axis=1)
             total_ativos_mes = len(df_mes_total[~df_mes_total['is_cinza']])
+            total_time_completo = 38
 
             l_atu = df_ind[df_ind['Mês'] == mes_sel_ind.capitalize()]
             if not l_atu.empty:
@@ -252,7 +253,6 @@ with aba_individual:
                 m_g = df_ac['Pontos'].sum() / df_ac['Dias'].sum() if df_ac['Dias'].sum() > 0 else 0
                 m_m = row['Pontos'] / row['Dias'] if row['Dias'] > 0 else 0
                 
-                # Tendências
                 t_m, d_m, t_g, d_g = "", 0, "", 0
                 if idx > 0:
                     l_ant = df_ind[df_ind['Mês'] == MESES_ORDEM[idx-1].capitalize()]
@@ -273,59 +273,58 @@ with aba_individual:
 
                 ca1, ca2, ca3 = st.columns([2, 2, 1.3])
                 with ca1: render_premium_card("Ranking Mensal", row['Pos_Mes'], m_m, t_m, d_m, get_status_color(row['Pos_Mes'], m_m, row['Pos_Mes_Txt'], row['Obs'], total_ativos_mes), row['Pos_Mes_Txt'], row['Obs'])
-                with ca2: render_premium_card("Ranking Geral (Acumulado)", row['Pos_Geral'], m_g, t_g, d_g, get_status_color(row['Pos_Geral'], m_g, row['Pos_Geral_Txt'], row['Obs'], total_ativos_mes), row['Pos_Geral_Txt'], row['Obs'])
+                with ca2: render_premium_card("Ranking Geral (Acumulado)", row['Pos_Geral'], m_g, t_g, d_g, get_status_color(row['Pos_Geral'], m_g, row['Pos_Geral_Txt'], row['Obs'], total_time_completo), row['Pos_Geral_Txt'], row['Obs'])
                 with ca3:
-                    acum_retornos = df_ind["Retornos"].sum()
-                    acum_sociais = df_ind["Acoes_Sociais"].sum()
-                    acum_volunt = df_ind["Horas_Voluntariado"].sum()
-                    acum_suporte = df_ind["Suporte"].sum()
                     st.markdown(f'<div class="pill-box"><span>📅 Dias (Mês / Ano)</span><b>{int(row["Dias"])} / {int(df_ind["Dias"].sum())}</b></div>', unsafe_allow_html=True)
-                    st.markdown(f'<div class="pill-box"><span>🔄 Casos Retornos</span><b>{int(row["Retornos"])} / {int(acum_retornos)}</b></div>', unsafe_allow_html=True)
-                    st.markdown(f'<div class="pill-box"><span>🤝 Ações Sociais</span><b>{int(row["Acoes_Sociais"])} / {int(acum_sociais)}</b></div>', unsafe_allow_html=True)
-                    st.markdown(f'<div class="pill-box"><span>⏳ Voluntariado (h)</span><b>{int(row["Horas_Voluntariado"])}h / {int(acum_volunt)}h</b></div>', unsafe_allow_html=True)
-                    st.markdown(f'<div class="pill-box"><span>🛠️ Suporte Solicitado</span><b>{int(row["Suporte"])} / {int(acum_suporte)}</b></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="pill-box"><span>🤝 Ações Sociais</span><b>{int(row["Acoes_Sociais"])} / {int(df_ind["Acoes_Sociais"].sum())}</b></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="pill-box"><span>⏳ Voluntariado (h)</span><b>{int(row["Horas_Voluntariado"])}h / {int(df_ind["Horas_Voluntariado"].sum())}h</b></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="pill-box"><span>🛠️ Suporte Solicitado</span><b>{int(row["Suporte"])} / {int(df_ind["Suporte"].sum())}</b></div>', unsafe_allow_html=True)
 
                 st.divider()
                 df_graf = df_ind[df_ind['Pontos']>0].copy()
                 df_graf['Mês'] = pd.Categorical(df_graf['Mês'], categories=MESES_ORDEM, ordered=True)
                 df_graf = df_graf.sort_values('Mês')
                 
-                # Cores histórico
-                def obter_cores_grafico(df_grafico, coluna):
-                    lista = []
-                    for _, lin in df_grafico.iterrows():
-                        m_ref = lin['Mês']
-                        df_ref = df_master[df_master['Mês'] == m_ref].copy()
-                        df_ref['is_cinza'] = df_ref.apply(lambda r: any(x in (str(r['Pos_Mes_Txt'])+str(r['Obs'])).lower() for x in ["férias","ferias","atestado","licença"]), axis=1)
-                        atv = len(df_ref[~df_ref['is_cinza']])
-                        lista.append(get_status_color(lin[coluna], lin['Pontos'], lin['Pos_Mes_Txt'], lin['Obs'], atv))
-                    return lista
-
-                clrs1 = obter_cores_grafico(df_graf, 'Pos_Mes')
-                clrs2 = obter_cores_grafico(df_graf, 'Pos_Geral')
+                def config_fig(fig, title, col=None, is_geral=False):
+                    fig.update_xaxes(categoryorder='array', categoryarray=MESES_ORDEM, range=[-0.5, 11.5])
+                    fig.update_layout(title=title, height=380, plot_bgcolor='white')
+                    if col: # Aplica cores dinâmicas apenas nos gráficos de Ranking
+                        def obter_clrs():
+                            lista = []
+                            for _, lin in df_graf.iterrows():
+                                m_ref = lin['Mês']
+                                df_ref = df_master[df_master['Mês'] == m_ref].copy()
+                                df_ref['is_cinza'] = df_ref.apply(lambda r: any(x in (str(r['Pos_Mes_Txt'])+str(r['Obs'])).lower() for x in ["férias","ferias","atestado","licença"]), axis=1)
+                                atv = total_time_completo if is_geral else len(df_ref[~df_ref['is_cinza']])
+                                lista.append(get_status_color(lin[col], 1, lin['Pos_Mes_Txt'], lin['Obs'], atv))
+                            return lista
+                        fig.update_traces(marker=dict(size=12, color=obter_clrs()), line=dict(color=DELL_BLUE, width=3))
+                    else: # Gráficos de Pontos e Casos (Cor fixa Dell)
+                        fig.update_traces(line=dict(color=DELL_BLUE, width=3), marker=dict(size=10, color=DELL_BLUE))
+                    return fig
 
                 f_s = dict(size=15, color="black", family="Arial Black")
+                
                 r1, r2 = st.columns(2)
                 with r1:
-                    fig1 = go.Figure()
-                    fig1.add_trace(go.Scatter(x=df_graf['Mês'], y=df_graf['Pos_Mes'], mode='markers+lines+text', text=df_graf['Pos_Mes'].astype(int), textposition="top right", textfont=f_s, marker=dict(size=12, color=clrs1, line=dict(width=2, color="white")), cliponaxis=False))
-                    fig1.update_yaxes(autorange="reversed", range=[df_graf['Pos_Mes'].max()+3, 1]); fig1.update_xaxes(categoryorder='array', categoryarray=MESES_ORDEM, range=[-0.5, 11.5])
-                    fig1.update_layout(plot_bgcolor='white', title="Evolução Ranking Mensal", height=380); st.plotly_chart(fig1, use_container_width=True)
+                    fig1 = go.Figure(go.Scatter(x=df_graf['Mês'], y=df_graf['Pos_Mes'], mode='markers+lines+text', text=df_graf['Pos_Mes'].astype(int), textposition="top right", textfont=f_s))
+                    fig1.update_yaxes(autorange="reversed")
+                    st.plotly_chart(config_fig(fig1, "Ranking Mensal (Jan-Dez)", 'Pos_Mes'), use_container_width=True)
                 with r2:
-                    fig2 = go.Figure()
-                    fig2.add_trace(go.Scatter(x=df_graf['Mês'], y=df_graf['Pos_Geral'], mode='markers+lines+text', text=df_graf['Pos_Geral'].astype(int), textposition="top right", textfont=f_s, marker=dict(size=12, color=clrs2, line=dict(width=2, color="white")), cliponaxis=False))
-                    fig2.update_yaxes(autorange="reversed", range=[df_graf['Pos_Geral'].max()+3, 1]); fig2.update_xaxes(categoryorder='array', categoryarray=MESES_ORDEM, range=[-0.5, 11.5])
-                    fig2.update_layout(plot_bgcolor='white', title="Evolução Ranking Geral", height=380); st.plotly_chart(fig2, use_container_width=True)
-                
+                    fig2 = go.Figure(go.Scatter(x=df_graf['Mês'], y=df_graf['Pos_Geral'], mode='markers+lines+text', text=df_graf['Pos_Geral'].astype(int), textposition="top right", textfont=f_s))
+                    fig2.update_yaxes(autorange="reversed")
+                    st.plotly_chart(config_fig(fig2, "Ranking Geral (Jan-Dez)", 'Pos_Geral', is_geral=True), use_container_width=True)
+
+                # --- ACRÉSCIMO CIRÚRGICO: GRÁFICOS DE PONTOS E CASOS ---
                 g1, g2 = st.columns(2)
                 with g1:
                     fig3 = px.line(df_graf, x='Mês', y='Pontos', markers=True, text='Pontos', title="Evolução de Pontos")
-                    fig3.update_traces(textposition="top right", textfont=f_s, line_color=DELL_BLUE, cliponaxis=False); fig3.update_xaxes(categoryorder='array', categoryarray=MESES_ORDEM, range=[-0.5, 11.5])
-                    fig3.update_layout(plot_bgcolor='white', height=380); st.plotly_chart(fig3, use_container_width=True)
+                    fig3.update_traces(textposition="top right", textfont=f_s)
+                    st.plotly_chart(config_fig(fig3, "Evolução de Pontos"), use_container_width=True)
                 with g2:
                     fig4 = px.line(df_graf, x='Mês', y='Casos', markers=True, text='Casos', title="Volume de Casos")
-                    fig4.update_traces(line_color=DELL_BLUE, textposition="top right", textfont=f_s, cliponaxis=False); fig4.update_xaxes(categoryorder='array', categoryarray=MESES_ORDEM, range=[-0.5, 11.5])
-                    fig4.update_layout(plot_bgcolor='white', height=380); st.plotly_chart(fig4, use_container_width=True)
+                    fig4.update_traces(textposition="top right", textfont=f_s)
+                    st.plotly_chart(config_fig(fig4, "Volume de Casos"), use_container_width=True)
 
 # --- ABA 2 ---
 with aba_equipe:
