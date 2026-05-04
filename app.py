@@ -3,18 +3,17 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import os
+import urllib.parse
 
-# --- CONFIGURAÇÕES DE CAMINHO BLINDADAS (SINCRO COM GITHUB) ---
+# --- CONFIGURAÇÕES DE CAMINHO BLINDADAS ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-if os.path.exists(os.path.join(BASE_DIR, "equipe")):
-    EQUIPE_DIR = os.path.join(BASE_DIR, "equipe")
-else:
-    EQUIPE_DIR = os.path.join(os.getcwd(), "equipe")
-
 LOGO_PATH = os.path.join(BASE_DIR, "dell_logo.png")
+SHEET_ID = "1rm2JvHblqzjQncxkJQbZtWJf2NLGWMaqi1pHP10f0hI"
 
-st.set_page_config(layout="wide", page_title="Dell QA Analytics Pro", page_icon="📊")  
+# 🔥 COLOQUE AQUI OS NOMES EXATOS DAS ABAS DO GOOGLE SHEETS
+NOMES_ABAS = ["Cledson_Braga", "Alcides_Neto"]
+
+st.set_page_config(layout="wide", page_title="Dell QA Analytics Pro", page_icon="📊")
 
 # --- LÓGICA DE LOGIN ---
 if "logado" not in st.session_state:
@@ -107,12 +106,16 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-# --- FUNÇÕES DE DADOS ---
-
-def carregar_dados_colaborador(nome_arquivo):
-    caminho = os.path.join(EQUIPE_DIR, nome_arquivo)
+# --- FUNÇÕES DE DADOS (AGORA VIA GOOGLE SHEETS) ---
+@st.cache_data(ttl=10)
+def carregar_dados_colaborador(nome_selecionado):
+    nome_aba = nome_selecionado.replace(".xlsx", "").strip()
+    nome_aba_url = urllib.parse.quote(nome_aba)
+    # URL para exportação de aba específica em CSV
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={nome_aba_url}"
+    
     try:
-        df_full = pd.read_excel(caminho, engine='openpyxl')
+        df_full = pd.read_csv(url)
         df_full.columns = [str(c).strip() for c in df_full.columns]
         df_foc = pd.DataFrame()
         df_foc['Mês'] = df_full['Mês'].astype(str).str.strip().str.capitalize()
@@ -140,24 +143,33 @@ def carregar_dados_colaborador(nome_arquivo):
             else:
                 df_foc[col] = 0
 
-        df_meta = pd.read_excel(caminho, header=None, usecols=[17], nrows=4)
-        t_res = str(df_meta.iloc[2, 0]).strip().upper()
-        p_res = str(df_meta.iloc[3, 0]).strip().capitalize()
+        # Captura de Metadados (Ajustado para ler colunas de metadados se existirem)
+        # No original era pd.read_excel(caminho, header=None, usecols=[17], nrows=4)
+        # No CSV, a coluna 17 é a 'R'. 
+        try:
+            nome_f = str(df_full.iloc[0, 17]) if len(df_full.columns) > 17 else nome_aba
+            badge = str(df_full.iloc[1, 17]) if len(df_full.columns) > 17 else "N/A"
+            t_res = str(df_full.iloc[2, 17]).strip().upper() if len(df_full.columns) > 17 else "SQUAD"
+            p_res = str(df_full.iloc[3, 17]).strip().capitalize() if len(df_full.columns) > 17 else "N/A"
+        except:
+            nome_f, badge, t_res, p_res = nome_aba, "N/A", "SQUAD", "N/A"
+
         if "Fisic" in p_res: p_res = "Físico"
         elif "Audit" in p_res: p_res = "Auditivo"
         elif "Visu" in p_res or "Ceg" in p_res: p_res = "Visual"
         
-        return df_foc, str(df_meta.iloc[0, 0]), str(df_meta.iloc[1, 0]), t_res, p_res
-    except: return None, None, None, None, None
+        return df_foc, nome_f, badge, t_res, p_res
+    except Exception as e: 
+        st.error(f"Erro ao carregar a aba {nome_aba}: {e}")
+        return None, None, None, None, None
 
 def carregar_dados_equipe_completa():
     all_data = []
-    if os.path.exists(EQUIPE_DIR):
-        for arq in [f for f in os.listdir(EQUIPE_DIR) if f.endswith(".xlsx")]:
-            df, n, b, t, p = carregar_dados_colaborador(arq)
-            if df is not None:
-                df['Nome_Exibicao'] = n; df['Turma_Exibicao'] = t; df['PCD_Tipo'] = p
-                all_data.append(df)
+    for nome in NOMES_ABAS:
+        df, n, b, t, p = carregar_dados_colaborador(nome)
+        if df is not None:
+            df['Nome_Exibicao'] = n; df['Turma_Exibicao'] = t; df['PCD_Tipo'] = p
+            all_data.append(df)
     return pd.concat(all_data) if all_data else pd.DataFrame()
 
 def get_status_color(pos, media, txt="", obs="", total_ativos=38):
@@ -198,9 +210,9 @@ with aba_individual:
     with c1:
         if os.path.exists(LOGO_PATH): st.image(LOGO_PATH, width=400)
     with c2:
-        arquivos_ind = sorted([f for f in os.listdir(EQUIPE_DIR) if f.endswith(".xlsx")])
-        mapa_arq = {f.replace(".xlsx", "").replace("_", " ").title(): f for f in arquivos_ind}
-        colab_sel = st.selectbox("👤 Selecionar Colaborador", ["Selecione..."] + list(mapa_arq.keys()), key="f_colab")
+        # Agora o mapa_arq é baseado na lista de abas definida no topo
+        mapa_abas = {nome.replace("_", " ").title(): nome for nome in NOMES_ABAS}
+        colab_sel = st.selectbox("👤 Selecionar Colaborador", ["Selecione..."] + list(mapa_abas.keys()), key="f_colab")
     with c3:
         mes_sel_ind = st.selectbox("📅 Mês de Análise", MESES_ORDEM, index=0, key="f_mes_ind")
 
@@ -238,9 +250,8 @@ with aba_individual:
                 html_r = "".join([f'<div class="list-item"><span style="color:#EF4444;">{n[:18]}</span><b>{v:.2f}</b></div>' for n,v in zip(ultimos['Nome_Exibicao'], ultimos['Media'])])
                 st.markdown(f'<div class="welcome-card"><div class="welcome-card-title">⚠️ Últimos do Ranking Geral</div>{html_r}</div>', unsafe_allow_html=True)
     else:
-        df_ind, nome_f, badge, turma, pcd = carregar_dados_colaborador(mapa_arq[colab_sel])
+        df_ind, nome_f, badge, turma, pcd = carregar_dados_colaborador(mapa_abas[colab_sel])
         if df_ind is not None:
-            # Cálculo de ativos do mês para cores
             df_mes_total = df_master[df_master['Mês'] == mes_sel_ind.capitalize()].copy()
             df_mes_total['is_cinza'] = df_mes_total.apply(lambda r: any(x in (str(r['Pos_Mes_Txt'])+str(r['Obs'])).lower() for x in ["férias","ferias","atestado","licença"]), axis=1)
             total_ativos_mes = len(df_mes_total[~df_mes_total['is_cinza']])
@@ -252,7 +263,6 @@ with aba_individual:
                 m_g = df_ac['Pontos'].sum() / df_ac['Dias'].sum() if df_ac['Dias'].sum() > 0 else 0
                 m_m = row['Pontos'] / row['Dias'] if row['Dias'] > 0 else 0
                 
-                # Tendências
                 t_m, d_m, t_g, d_g = "", 0, "", 0
                 if idx > 0:
                     l_ant = df_ind[df_ind['Mês'] == MESES_ORDEM[idx-1].capitalize()]
@@ -290,7 +300,6 @@ with aba_individual:
                 df_graf['Mês'] = pd.Categorical(df_graf['Mês'], categories=MESES_ORDEM, ordered=True)
                 df_graf = df_graf.sort_values('Mês')
                 
-                # Cores histórico
                 def obter_cores_grafico(df_grafico, coluna):
                     lista = []
                     for _, lin in df_grafico.iterrows():
