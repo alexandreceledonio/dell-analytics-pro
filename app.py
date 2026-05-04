@@ -14,7 +14,7 @@ else:
 
 LOGO_PATH = os.path.join(BASE_DIR, "dell_logo.png")
 
-st.set_page_config(layout="wide", page_title="Dell QA Analytics Pro", page_icon="📊") 
+st.set_page_config(layout="wide", page_title="Dell QA Analytics Pro", page_icon="📊")  
 
 # --- LÓGICA DE LOGIN ---
 if "logado" not in st.session_state:
