@@ -249,9 +249,9 @@ with aba_individual:
                 html_t = "".join([f'<div class="list-item"><span>{t}</span><b>{v}</b></div>' for t,v in turmas.items()])
                 st.markdown(f'<div class="welcome-card"><div class="welcome-card-title">👥 Equipe por Turma</div>{html_t}</div>', unsafe_allow_html=True)
             
-            # --- ESPAÇO CENTRAL: ALERTA DE PRODUTIVIDADE (LÓGICA DAS BOLINHAS + ESCALONAMENTO + RESET) ---
+            # --- ESPAÇO CENTRAL: ALERTA DE PRODUTIVIDADE COM ORDENAÇÃO POR GRAVIDADE ---
             with w2:
-                alertas_html = ""
+                lista_alertas = []
                 nomes_unicos = df_master['Nome_Exibicao'].unique()
                 meses_hist = [m.capitalize() for m in MESES_ORDEM[:u_idx_db+1]]
 
@@ -259,34 +259,38 @@ with aba_individual:
                     dados_n = df_master[df_master['Nome_Exibicao'] == nome].copy()
                     vermelhos_seguidos = []
                     
-                    # Varre do mês mais recente (u_idx_db) para trás
                     for m_check in reversed(meses_hist):
                         linha = dados_n[dados_n['Mês'] == m_check]
                         if not linha.empty:
                             r = linha.iloc[0]
-                            # Calcula a cor exata da bolinha seguindo a regra Master
                             media_m = r['Pontos']/r['Dias'] if r['Dias']>0 else 0
                             cor_bolinha = get_status_color(r['Pos_Geral'], media_m, r['Pos_Geral_Txt'], r['Obs'], 38)
-                            
                             if cor_bolinha == "#EF4444":
                                 vermelhos_seguidos.append(m_check[:3])
                             else:
-                                break # RESET AUTOMÁTICO: Se o mês atual ou anterior não for vermelho, a sequência quebra
+                                break 
                     
-                    if len(vermelhos_seguidos) >= 2:
+                    qtd = len(vermelhos_seguidos)
+                    if qtd >= 2:
                         pills = "".join([f'<span class="alert-pill">{m}</span>' for m in reversed(vermelhos_seguidos)])
-                        if len(vermelhos_seguidos) >= 4:
-                            status = '<span class="alert-status status-regime">🏢 MUDAR REGIME DE TRABALHO</span>'
-                        elif len(vermelhos_seguidos) == 3:
-                            status = '<span class="alert-status status-chamada">🚨 CHAMAR PARA CONVERSA</span>'
+                        if qtd >= 4:
+                            st_txt, st_class, peso = "🏢 MUDAR REGIME DE TRABALHO", "status-regime", 3
+                        elif qtd == 3:
+                            st_txt, st_class, peso = "🚨 CHAMAR PARA CONVERSA", "status-chamada", 2
                         else:
-                            status = '<span class="alert-status status-atencao">⚠️ ATENÇÃO: Possível Conversa</span>'
-                        alertas_html += f'<div class="alert-row"><span class="alert-name">{nome[:18]}</span>{status}<br>{pills}</div>'
+                            st_txt, st_class, peso = "⚠️ ATENÇÃO: Possível Conversa", "status-atencao", 1
+                        
+                        html_row = f'<div class="alert-row"><span class="alert-name">{nome[:18]}</span><span class="alert-status {st_class}">{st_txt}</span><br>{pills}</div>'
+                        lista_alertas.append({"html": html_row, "peso": peso})
+
+                # ORDENAÇÃO: Quem tem maior peso (mais meses no vermelho) fica no topo
+                lista_alertas = sorted(lista_alertas, key=lambda x: x['peso'], reverse=True)
+                alertas_final_html = "".join([item['html'] for item in lista_alertas])
 
                 st.markdown(f'''
                     <div class="alert-container">
                         <div class="alert-header">⚠️ ALERTA DE PRODUTIVIDADE ({MES_REFERENCIA})</div>
-                        <div style="overflow-y: auto; height: 260px;">{alertas_html if alertas_html else "✅ Produtividade em dia."}</div>
+                        <div style="overflow-y: auto; height: 260px;">{alertas_final_html if alertas_final_html else "✅ Produtividade em dia."}</div>
                     </div>
                 ''', unsafe_allow_html=True)
 
@@ -352,7 +356,6 @@ with aba_individual:
 
                 st.divider()
                 
-                # --- GRÁFICOS: AJUSTE DE EIXO X (JANEIRO A DEZEMBRO) ---
                 df_graf = df_ind[df_ind['Pontos']>0].copy()
                 df_graf['Mês'] = pd.Categorical(df_graf['Mês'], categories=MESES_ORDEM, ordered=True)
                 df_graf = df_graf.sort_values('Mês')
