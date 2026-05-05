@@ -114,6 +114,17 @@ st.markdown(f"""
     .bolinha-cinza {{ background: #94A3B8; color: white; }}
     
     .info-tag {{ background: #E1EFFE; color: {DELL_BLUE}; font-size: 14px; font-weight: 600; padding: 5px 12px; border-radius: 6px; margin-right: 10px; }}
+
+    /* ESTILO DO PAINEL DE ALERTA ESCALONADO */
+    .alert-container {{ background: white; border-radius: 15px; padding: 20px; border: 1px solid #FEE2E2; height: 340px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); }}
+    .alert-header {{ color: #EF4444; font-weight: 800; font-size: 16px; margin-bottom: 10px; text-transform: uppercase; }}
+    .alert-row {{ padding: 10px 0; border-bottom: 1px solid #FEE2E2; }}
+    .alert-name {{ font-weight: 700; color: #111827; font-size: 13px; display: block; margin-bottom: 5px; }}
+    .alert-status {{ font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; margin-bottom: 5px; display: inline-block; }}
+    .status-atencao {{ background: #FEF3C7; color: #92400E; }}
+    .status-chamada {{ background: #FEE2E2; color: #B91C1C; border: 1px solid #EF4444; }}
+    .alert-pills {{ display: flex; gap: 4px; }}
+    .alert-pill {{ background: #EF4444; color: white; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 700; }}
     </style>
 """, unsafe_allow_html=True)
 
@@ -170,13 +181,14 @@ def carregar_dados_equipe_completa():
                 all_data.append(df)
     return pd.concat(all_data) if all_data else pd.DataFrame()
 
+# Lógica mestre de cores das bolinhas (Centralizada para gráficos e alertas)
 def get_status_color(pos, media, txt="", obs="", total_ativos=38):
     comb = (str(txt) + str(obs)).lower()
-    if any(x in comb for x in ["férias", "ferias", "atestado", "licença"]): return "#94A3B8"
+    if any(x in comb for x in ["férias", "ferias", "atestado", "licença"]): return "#94A3B8" # CINZA
     if pos == 0 or media == 0: return "#94A3B8"
-    if 1 <= pos <= 8: return "#10B981"
-    if pos > (total_ativos - 4): return "#EF4444"
-    return "#F59E0B"
+    if 1 <= pos <= 8: return "#10B981" # VERDE
+    if pos > (total_ativos - 4): return "#EF4444" # VERMELHO
+    return "#F59E0B" # AMARELO
 
 def render_premium_card(label, pos, media, trend_val="", delta=0, color="#94A3B8", txt="", obs=""):
     comb = (str(txt) + str(obs)).lower().strip()
@@ -223,7 +235,6 @@ with aba_individual:
     ''', unsafe_allow_html=True)
 
     if colab_sel == "Selecione...":
-        # --- RESTAURAÇÃO DOS CARDS DE HEALTH (INICIAL) ---
         if not df_master.empty:
             df_mes_atu = df_master[df_master['Mês'] == mes_sel_ind.capitalize()]
             w1, w2, w3, w4 = st.columns(4)
@@ -231,11 +242,52 @@ with aba_individual:
                 turmas = df_mes_atu.drop_duplicates('Nome_Exibicao')['Turma_Exibicao'].value_counts().sort_index()
                 html_t = "".join([f'<div class="list-item"><span>{t}</span><b>{v}</b></div>' for t,v in turmas.items()])
                 st.markdown(f'<div class="welcome-card"><div class="welcome-card-title">👥 Equipe por Turma</div>{html_t}</div>', unsafe_allow_html=True)
+            
+            # --- ESPAÇO CENTRAL: ALERTA DE PRODUTIVIDADE COM LÓGICA DAS BOLINHAS ---
             with w2:
-                total_p = len(df_master.drop_duplicates('Nome_Exibicao'))
-                afastados_no_mes = df_mes_atu[df_mes_atu.apply(lambda r: any(x in (str(r['Pos_Mes_Txt'])+str(r['Obs'])).lower() for x in ["férias","ferias","atestado","licença"]), axis=1)]
-                num_a = len(afastados_no_mes.drop_duplicates('Nome_Exibicao'))
-                st.markdown(f'<div class="welcome-card"><div class="welcome-card-title">🩺 Health Check ({mes_sel_ind})</div><div class="welcome-card-value">{ ((total_p-num_a)/total_p*100) if total_p>0 else 0:.0f}%</div>Ativos: {total_p-num_a}<br>Afastados: {num_a}</div>', unsafe_allow_html=True)
+                alertas_html = ""
+                nomes_unicos = df_master['Nome_Exibicao'].unique()
+                idx_mes_sel = MESES_ORDEM.index(mes_sel_ind)
+                meses_hist = [m.capitalize() for m in MESES_ORDEM[:idx_mes_sel+1]]
+
+                for nome in nomes_unicos:
+                    dados_n = df_master[df_master['Nome_Exibicao'] == nome].copy()
+                    meses_vermelhos_nome = []
+                    
+                    for m_check in meses_hist:
+                        linha = dados_n[dados_n['Mês'] == m_check]
+                        if not linha.empty:
+                            r = linha.iloc[0]
+                            # Calcula a cor exata da bolinha para este mês
+                            df_ref_mes = df_master[df_master['Mês'] == m_check].copy()
+                            df_ref_mes['is_cinza'] = df_ref_mes.apply(lambda row: any(x in (str(row['Pos_Mes_Txt'])+str(row['Obs'])).lower() for x in ["férias","ferias","atestado","licença"]), axis=1)
+                            atv = len(df_ref_mes[~df_ref_mes['is_cinza']])
+                            
+                            media_m = r['Pontos']/r['Dias'] if r['Dias']>0 else 0
+                            cor_bolinha = get_status_color(r['Pos_Geral'], media_m, r['Pos_Geral_Txt'], r['Obs'], 38) # Regra do Geral
+                            
+                            if cor_bolinha == "#EF4444":
+                                meses_vermelhos_nome.append(m_check[:3])
+
+                    if len(meses_vermelhos_nome) >= 3:
+                        status = '<span class="alert-status status-chamada">🚨 CHAMAR PARA CONVERSA</span>'
+                        pills = "".join([f'<span class="alert-pill">{m}</span>' for m in meses_vermelhos_nome[-3:]])
+                        alertas_html += f'<div class="alert-row"><span class="alert-name">{nome[:18]}</span>{status}<div class="alert-pills">{pills}</div></div>'
+                    elif len(meses_vermelhos_nome) == 2:
+                        status = '<span class="alert-status status-atencao">⚠️ ATENÇÃO: Possível Conversa</span>'
+                        pills = "".join([f'<span class="alert-pill">{m}</span>' for m in meses_vermelhos_nome[-2:]])
+                        alertas_html += f'<div class="alert-row"><span class="alert-name">{nome[:18]}</span>{status}<div class="alert-pills">{pills}</div></div>'
+
+                if not alertas_html:
+                    alertas_html = "<div style='color:#10B981; font-size:14px; margin-top:20px;'>✅ Produtividade em dia.</div>"
+                
+                st.markdown(f'''
+                    <div class="alert-container">
+                        <div class="alert-header">⚠️ ALERTA DE PRODUTIVIDADE</div>
+                        <div style="overflow-y: auto; height: 260px;">{alertas_html}</div>
+                    </div>
+                ''', unsafe_allow_html=True)
+
             with w3:
                 pcds = df_mes_atu.drop_duplicates('Nome_Exibicao')['PCD_Tipo'].value_counts()
                 html_p = "".join([f'<div class="list-item"><span>{p}</span><b>{v}</b></div>' for p,v in pcds.items() if p.upper() not in ["NÃO","NA","N/A","NO"]])
@@ -248,6 +300,7 @@ with aba_individual:
                 html_r = "".join([f'<div class="list-item"><span style="color:#EF4444;">{n[:18]}</span><b>{v:.2f}</b></div>' for n,v in zip(ultimos['Nome_Exibicao'], ultimos['Media'])])
                 st.markdown(f'<div class="welcome-card"><div class="welcome-card-title">⚠️ Últimos do Ranking Geral</div>{html_r}</div>', unsafe_allow_html=True)
     else:
+        # PERMANECE IGUAL (BASE MASTER INDIVIDUAL)
         df_ind, nome_f, badge, turma, pcd = carregar_dados_colaborador(mapa_arq[colab_sel])
         if df_ind is not None:
             df_mes_total = df_master[df_master['Mês'] == mes_sel_ind.capitalize()].copy()
@@ -291,21 +344,22 @@ with aba_individual:
                 with m2:
                     st.markdown(f'<div class="mini-card"><div class="mini-card-label">🤝 Ações Sociais (Mês / Ano)</div><div class="mini-card-value">{int(row["Acoes_Sociais"])} / {int(df_ind["Acoes_Sociais"].sum())}</div></div>', unsafe_allow_html=True)
                 with m3:
-                    st.markdown(f'<div class="mini-card"><div class="mini-card-label">⏳ Voluntariado (Mês / Ano)</div><div class="mini-card-value">{int(row["Horas_Voluntariado"])}h / {int(df_ind["Horas_Voluntariado"].sum())}h</div></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="mini-card"><div class="mini-card-label">⏳ Voluntariado (Mês / Ano)</div><div class="mini-card-value">{int(df_ind["Horas_Voluntariado"].sum())}h</div></div>', unsafe_allow_html=True)
                 with m4:
-                    st.markdown(f'<div class="mini-card"><div class="mini-card-label">🛠️ Suporte (Mês / Ano)</div><div class="mini-card-value">{int(row["Suporte"])} / {int(df_ind["Suporte"].sum())}</div></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="mini-card"><div class="mini-card-label">🛠️ Suporte (Mês / Ano)</div><div class="mini-card-value">{int(df_ind["Suporte"].sum())}</div></div>', unsafe_allow_html=True)
 
                 st.divider()
+                
                 df_graf = df_ind[df_ind['Pontos']>0].copy()
                 df_graf['Mês'] = pd.Categorical(df_graf['Mês'], categories=MESES_ORDEM, ordered=True)
                 df_graf = df_graf.sort_values('Mês')
                 
                 def config_fig(fig, title, col=None, is_geral=False, is_rank=True):
-                    fig.update_xaxes(categoryorder='array', categoryarray=MESES_ORDEM, range=[-0.5, 11.5])
-                    fig.update_layout(title=title, height=400, plot_bgcolor='white', margin=dict(t=100, b=40, l=40, r=40))
+                    fig.update_xaxes(categoryorder='array', categoryarray=MESES_ORDEM, range=[-0.5, 11.5], showgrid=True)
+                    fig.update_layout(title=title, height=400, plot_bgcolor='white', margin=dict(t=80, b=40, l=40, r=40))
                     if is_rank:
                         y_max = df_graf[col].max() if not df_graf.empty else 38
-                        fig.update_yaxes(autorange="reversed", range=[y_max + 2, 0.1])
+                        fig.update_yaxes(autorange="reversed", range=[y_max + 2, -1.5])
                         def obter_clrs():
                             lista = []
                             for _, lin in df_graf.iterrows():
@@ -317,27 +371,27 @@ with aba_individual:
                         fig.update_traces(marker=dict(size=12, color=obter_clrs()), line=dict(color=DELL_BLUE, width=3))
                     else:
                         y_val_max = df_graf[col].max() if not df_graf.empty else 100
-                        fig.update_yaxes(range=[0, y_val_max * 1.3])
+                        fig.update_yaxes(range=[-5, y_val_max * 1.3])
                         fig.update_traces(line_color=DELL_BLUE, marker=dict(size=10, color=DELL_BLUE))
                     return fig
 
                 f_s = dict(size=15, color="black", family="Arial Black")
                 r1, r2 = st.columns(2)
                 with r1:
-                    fig1 = go.Figure(go.Scatter(x=df_graf['Mês'], y=df_graf['Pos_Mes'], mode='markers+lines+text', text=df_graf['Pos_Mes'].astype(int), textposition="top center", textfont=f_s))
+                    fig1 = go.Figure(go.Scatter(x=df_graf['Mês'], y=df_graf['Pos_Mes'], mode='markers+lines+text', text=df_graf['Pos_Mes'].astype(int), textposition="bottom center", textfont=f_s))
                     st.plotly_chart(config_fig(fig1, "Ranking Mensal (Jan-Dez)", 'Pos_Mes'), use_container_width=True)
                 with r2:
-                    fig2 = go.Figure(go.Scatter(x=df_graf['Mês'], y=df_graf['Pos_Geral'], mode='markers+lines+text', text=df_graf['Pos_Geral'].astype(int), textposition="top center", textfont=f_s))
+                    fig2 = go.Figure(go.Scatter(x=df_graf['Mês'], y=df_graf['Pos_Geral'], mode='markers+lines+text', text=df_graf['Pos_Geral'].astype(int), textposition="bottom center", textfont=f_s))
                     st.plotly_chart(config_fig(fig2, "Ranking Geral (Jan-Dez)", 'Pos_Geral', is_geral=True), use_container_width=True)
                 
                 g1, g2 = st.columns(2)
                 with g1:
                     fig3 = px.line(df_graf, x='Mês', y='Pontos', markers=True, text='Pontos', title="Evolução de Pontos")
-                    fig3.update_traces(textposition="top center", textfont=f_s)
+                    fig3.update_traces(textposition="bottom center", textfont=f_s)
                     st.plotly_chart(config_fig(fig3, "Evolução de Pontos", col='Pontos', is_rank=False), use_container_width=True)
                 with g2:
                     fig4 = px.line(df_graf, x='Mês', y='Casos', markers=True, text='Casos', title="Volume de Casos")
-                    fig4.update_traces(textposition="top center", textfont=f_s)
+                    fig4.update_traces(textposition="bottom center", textfont=f_s)
                     st.plotly_chart(config_fig(fig4, "Volume de Casos", col='Casos', is_rank=False), use_container_width=True)
 
 # --- ABA 2 ---
@@ -351,7 +405,7 @@ with aba_equipe:
     if not df_master.empty:
         col_g, col_m = st.columns(2)
         with col_g:
-            st.subheader(f"🏆 Ranking Geral (Até {mes_eq_g})")
+            st.markdown(f"<h3 style='color:{DELL_BLUE}; font-weight:800;'>🏆 Ranking Geral até {mes_eq_g}</h3>", unsafe_allow_html=True)
             ms_r = [m.capitalize() for m in MESES_ORDEM[:MESES_ORDEM.index(mes_eq_g)+1]]
             res = df_master[df_master['Mês'].isin(ms_r)].groupby(['Nome_Exibicao', 'Turma_Exibicao']).apply(lambda x: x['Pontos'].sum() / x['Dias'].sum() if x['Dias'].sum() > 0 else 0).sort_values(ascending=False).reset_index()
             res.columns = ['Nome', 'Turma', 'Media']
@@ -359,7 +413,7 @@ with aba_equipe:
             st.markdown(f'<div class="ranking-container">{html_g}</div>', unsafe_allow_html=True)
             
         with col_m:
-            st.subheader(f"📅 Ranking Mensal: {mes_eq_m}")
+            st.markdown(f"<h3 style='color:{DELL_BLUE}; font-weight:800;'>📅 Ranking Mensal: {mes_eq_m}</h3>", unsafe_allow_html=True)
             df_m = df_master[df_master['Mês'] == mes_eq_m.capitalize()].copy()
             df_m['Media'] = df_m['Pontos'] / df_m['Dias']; df_m = df_m.sort_values(by="Media", ascending=False).reset_index(drop=True)
             df_m['is_cinza'] = df_m.apply(lambda r: any(x in (str(r['Pos_Mes_Txt'])+str(r['Obs'])).lower() for x in ["férias","ferias","atestado","licença"]), axis=1)
