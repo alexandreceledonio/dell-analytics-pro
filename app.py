@@ -23,11 +23,12 @@ if "logado" not in st.session_state:
 if "usuario_identificado" not in st.session_state:
     st.session_state.usuario_identificado = ""
 
-def realizar_login():
-    if st.session_state.usuario_input and st.session_state.senha_input == "dellqa2026": 
+def realizar_login(usuario, senha):
+    if usuario and senha == "dellqa2026": 
         st.session_state.logado = True
-        st.session_state.usuario_identificado = st.session_state.usuario_input
-    elif not st.session_state.usuario_input:
+        st.session_state.usuario_identificado = usuario
+        st.rerun()
+    elif not usuario:
         st.warning("Por favor, digite o nome de usuário.")
     else:
         st.error("Senha incorreta. Tente novamente.")
@@ -35,16 +36,14 @@ def realizar_login():
 if not st.session_state.logado:
     st.markdown("""
         <style>
-        .stButton > button {
-            width: 100%;
-            background-color: #0076CE !important;
-            color: white !important;
-            font-weight: 800 !important;
-            height: 45px;
-            border-radius: 8px;
-            border: none;
-            transition: 0.3s;
-            margin-top: 10px;
+        [data-testid="stForm"] { border: none !important; padding: 0 !important; }
+        div[data-testid="stFormSubmitButton"], div[data-testid="stFormSubmitButton"] > button {
+            width: 100% !important; display: block;
+        }
+        div[data-testid="stFormSubmitButton"] > button {
+            background-color: #0076CE !important; color: white !important;
+            font-weight: 800 !important; height: 45px; border-radius: 8px;
+            border: none; transition: 0.3s; margin-top: 10px;
         }
         div[data-testid="stVerticalBlock"] > div { text-align: center; }
         </style>
@@ -57,9 +56,12 @@ if not st.session_state.logado:
         if os.path.exists(LOGO_PATH): 
             st.image(LOGO_PATH, use_container_width=True)
         st.markdown("<h2 style='text-align: center; color: #0076CE; margin-bottom: 20px;'>Dell QA Analytics Pro</h2>", unsafe_allow_html=True)
-        st.text_input("Usuário:", key="usuario_input", placeholder="Seu nome")
-        st.text_input("Senha:", type="password", key="senha_input", placeholder="Senha do Squad")
-        st.button("Entrar", on_click=realizar_login)
+        with st.form("login_form"):
+            usuario_input = st.text_input("Usuário:", placeholder="Seu nome")
+            senha_input = st.text_input("Senha:", type="password", placeholder="Senha do Squad")
+            botao_entrar = st.form_submit_button("Entrar")
+            if botao_entrar:
+                realizar_login(usuario_input, senha_input)
     st.stop() 
 
 # --- CONSTANTES ---
@@ -81,20 +83,23 @@ st.markdown(f"""
     }}
     .user-tag {{ background: {DELL_BLUE}; color: white; padding: 5px 15px; border-radius: 20px; font-weight: 600; font-size: 14px; }}
 
-    .welcome-card {{ background: white; border-radius: 15px; padding: 20px; border: 1px solid #E5E7EB; height: 340px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); overflow: hidden; }}
-    .welcome-card-title {{ color: {DELL_BLUE}; font-weight: 800; font-size: 16px; margin-bottom: 12px; text-transform: uppercase; }}
-    .welcome-card-value {{ font-size: 58px; font-weight: 800; color: #111827; margin: 15px 0; }}
-    .list-item {{ font-size: 14px; padding: 6px 0; border-bottom: 1px solid #F3F4F6; display: flex; justify-content: space-between; align-items: center; }}
-
-    .card-premium {{ background: white; border-radius: 12px; height: 180px; border: 1px solid #E5E7EB; display: flex; overflow: hidden; margin-bottom: 1rem; }}
+    .card-premium {{ background: white; border-radius: 12px; height: 180px; border: 1px solid #E5E7EB; display: flex; overflow: hidden; margin-bottom: 1rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }}
     .status-bar {{ width: 12px; height: 100%; }}
     .card-content {{ padding: 25px; flex-grow: 1; display: flex; flex-direction: column; justify-content: center; }}
     .card-label {{ text-transform: uppercase; font-size: 14px; font-weight: 600; color: #6B7280; margin-bottom: 4px; }}
     .card-value {{ font-size: 34px; font-weight: 800; display: flex; align-items: center; gap: 10px; }}
-    .trend-badge {{ font-size: 18px; font-weight: 800; padding: 2px 8px; border-radius: 6px; display: flex; align-items: center; gap: 4px; }}
+    .trend-badge {{ font-size: 18px; font-weight: 800; padding: 2px 8px; border-radius: 6px; }}
     .trend-up {{ background: #DCFCE7 !important; color: #10B981 !important; }}
     .trend-down {{ background: #FEE2E2 !important; color: #EF4444 !important; }}
-
+    
+    .mini-card {{
+        background: white; border: 1px solid #E5E7EB; border-radius: 10px; padding: 15px;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02); height: 110px;
+    }}
+    .mini-card-label {{ font-size: 11px; font-weight: 600; color: #6B7280; text-transform: uppercase; margin-bottom: 5px; }}
+    .mini-card-value {{ font-size: 18px; font-weight: 800; color: #111827; }}
+    
     .ranking-container {{ background: white; border-radius: 15px; padding: 20px; border: 1px solid #E2E8F0; height: 680px; overflow-y: auto; }}
     .colab-item {{ display: flex; align-items: center; justify-content: space-between; padding: 12px; border-bottom: 1px solid #F1F5F9; }}
     .pos-number {{ width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; margin-right: 15px; flex-shrink: 0; }}
@@ -104,7 +109,6 @@ st.markdown(f"""
     .bolinha-cinza {{ background: #94A3B8; color: white; }}
     
     .info-tag {{ background: #E1EFFE; color: {DELL_BLUE}; font-size: 14px; font-weight: 600; padding: 5px 12px; border-radius: 6px; margin-right: 10px; }}
-    .pill-box {{ background: white; border: 1px solid #E5E7EB; border-radius: 12px; padding: 12px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; font-size: 14px; }}
     </style>
 """, unsafe_allow_html=True)
 
@@ -213,34 +217,9 @@ with aba_individual:
         </div>
     ''', unsafe_allow_html=True)
 
-    if colab_sel == "Selecione...":
-        if not df_master.empty:
-            df_mes_atu = df_master[df_master['Mês'] == mes_sel_ind.capitalize()]
-            w1, w2, w3, w4 = st.columns(4)
-            with w1:
-                turmas = df_mes_atu.drop_duplicates('Nome_Exibicao')['Turma_Exibicao'].value_counts().sort_index()
-                html_t = "".join([f'<div class="list-item"><span>{t}</span><b>{v}</b></div>' for t,v in turmas.items()])
-                st.markdown(f'<div class="welcome-card"><div class="welcome-card-title">👥 Equipe por Turma</div>{html_t}</div>', unsafe_allow_html=True)
-            with w2:
-                total_p = len(df_master.drop_duplicates('Nome_Exibicao'))
-                afastados_no_mes = df_mes_atu[df_mes_atu.apply(lambda r: any(x in (str(r['Pos_Mes_Txt'])+str(r['Obs'])).lower() for x in ["férias","ferias","atestado","licença"]), axis=1)]
-                num_a = len(afastados_no_mes.drop_duplicates('Nome_Exibicao'))
-                st.markdown(f'<div class="welcome-card"><div class="welcome-card-title">🩺 Health Check ({mes_sel_ind})</div><div class="welcome-card-value">{ ((total_p-num_a)/total_p*100) if total_p>0 else 0:.0f}%</div>Ativos: {total_p-num_a}<br>Afastados: {num_a}</div>', unsafe_allow_html=True)
-            with w3:
-                pcds = df_mes_atu.drop_duplicates('Nome_Exibicao')['PCD_Tipo'].value_counts()
-                html_p = "".join([f'<div class="list-item"><span>{p}</span><b>{v}</b></div>' for p,v in pcds.items() if p.upper() not in ["NÃO","NA","N/A","NO"]])
-                st.markdown(f'<div class="welcome-card"><div class="welcome-card-title">♿ PCD por Categoria</div>{html_p if html_p else "Sem registros."}</div>', unsafe_allow_html=True)
-            with w4:
-                rank_d = df_master.groupby('Nome_Exibicao').apply(lambda x: x['Pontos'].sum()/x['Dias'].sum() if x['Dias'].sum()>0 else 0).sort_values().reset_index()
-                rank_d.columns = ['Nome_Exibicao', 'Media']
-                ultimos = rank_d[rank_d['Media']>0].head(4).copy()
-                ultimos = ultimos.sort_values(by='Media', ascending=False)
-                html_r = "".join([f'<div class="list-item"><span style="color:#EF4444;">{n[:18]}</span><b>{v:.2f}</b></div>' for n,v in zip(ultimos['Nome_Exibicao'], ultimos['Media'])])
-                st.markdown(f'<div class="welcome-card"><div class="welcome-card-title">⚠️ Últimos do Ranking Geral</div>{html_r}</div>', unsafe_allow_html=True)
-    else:
+    if colab_sel != "Selecione...":
         df_ind, nome_f, badge, turma, pcd = carregar_dados_colaborador(mapa_arq[colab_sel])
         if df_ind is not None:
-            # BLINDAGEM ALESSANDRA: Ativos dinâmicos para o Mensal, Time completo (38) para o Geral
             df_mes_total = df_master[df_master['Mês'] == mes_sel_ind.capitalize()].copy()
             df_mes_total['is_cinza'] = df_mes_total.apply(lambda r: any(x in (str(r['Pos_Mes_Txt'])+str(r['Obs'])).lower() for x in ["férias","ferias","atestado","licença"]), axis=1)
             total_ativos_mes = len(df_mes_total[~df_mes_total['is_cinza']])
@@ -259,72 +238,79 @@ with aba_individual:
                     if not l_ant.empty:
                         ant = l_ant.iloc[0]
                         if ant['Pos_Mes']>0 and row['Pos_Mes']>0:
-                            if row['Pos_Mes'] < ant['Pos_Mes']: d_m = abs(row['Pos_Mes']-ant['Pos_Mes']); t_m = "up"
-                            elif row['Pos_Mes'] > ant['Pos_Mes']: d_m = abs(row['Pos_Mes']-ant['Pos_Mes']); t_m = "down"
-                            else: d_m = 0; t_m = "stable"
+                            if row['Pos_Mes'] < ant['Pos_Mes']: d_m, t_m = abs(row['Pos_Mes']-ant['Pos_Mes']), "up"
+                            elif row['Pos_Mes'] > ant['Pos_Mes']: d_m, t_m = abs(row['Pos_Mes']-ant['Pos_Mes']), "down"
+                            else: d_m, t_m = 0, "stable"
                         if ant['Pos_Geral']>0 and row['Pos_Geral']>0:
-                            if row['Pos_Geral'] < ant['Pos_Geral']: d_g = abs(row['Pos_Geral']-ant['Pos_Geral']); t_g = "up"
-                            elif row['Pos_Geral'] > ant['Pos_Geral']: d_g = abs(row['Pos_Geral']-ant['Pos_Geral']); t_g = "down"
-                            else: d_g = 0; t_g = "stable"
+                            if row['Pos_Geral'] < ant['Pos_Geral']: d_g, t_g = abs(row['Pos_Geral']-ant['Pos_Geral']), "up"
+                            elif row['Pos_Geral'] > ant['Pos_Geral']: d_g, t_g = abs(row['Pos_Geral']-ant['Pos_Geral']), "down"
+                            else: d_g, t_g = 0, "stable"
 
                 st.markdown(f"<h1 style='color:{DELL_BLUE}; font-weight:800;'>{nome_f}</h1>", unsafe_allow_html=True)
                 st.markdown(f'<div><span class="info-tag">🆔 {badge}</span><span class="info-tag">👥 {turma}</span></div>', unsafe_allow_html=True)
                 st.divider()
 
-                ca1, ca2, ca3 = st.columns([2, 2, 1.3])
-                with ca1: render_premium_card("Ranking Mensal", row['Pos_Mes'], m_m, t_m, d_m, get_status_color(row['Pos_Mes'], m_m, row['Pos_Mes_Txt'], row['Obs'], total_ativos_mes), row['Pos_Mes_Txt'], row['Obs'])
-                with ca2: render_premium_card("Ranking Geral (Acumulado)", row['Pos_Geral'], m_g, t_g, d_g, get_status_color(row['Pos_Geral'], m_g, row['Pos_Geral_Txt'], row['Obs'], total_time_completo), row['Pos_Geral_Txt'], row['Obs'])
-                with ca3:
-                    st.markdown(f'<div class="pill-box"><span>📅 Dias (Mês / Ano)</span><b>{int(row["Dias"])} / {int(df_ind["Dias"].sum())}</b></div>', unsafe_allow_html=True)
-                    st.markdown(f'<div class="pill-box"><span>🤝 Ações Sociais</span><b>{int(row["Acoes_Sociais"])} / {int(df_ind["Acoes_Sociais"].sum())}</b></div>', unsafe_allow_html=True)
-                    st.markdown(f'<div class="pill-box"><span>⏳ Voluntariado (h)</span><b>{int(row["Horas_Voluntariado"])}h / {int(df_ind["Horas_Voluntariado"].sum())}h</b></div>', unsafe_allow_html=True)
-                    st.markdown(f'<div class="pill-box"><span>🛠️ Suporte Solicitado</span><b>{int(row["Suporte"])} / {int(df_ind["Suporte"].sum())}</b></div>', unsafe_allow_html=True)
+                # RESTAURAÇÃO: Cards Principais Lado a Lado (Layout Base)
+                col_c1, col_c2 = st.columns(2)
+                with col_c1: render_premium_card("Ranking Mensal", row['Pos_Mes'], m_m, t_m, d_m, get_status_color(row['Pos_Mes'], m_m, row['Pos_Mes_Txt'], row['Obs'], total_ativos_mes), row['Pos_Mes_Txt'], row['Obs'])
+                with col_c2: render_premium_card("Ranking Geral (Acumulado)", row['Pos_Geral'], m_g, t_g, d_g, get_status_color(row['Pos_Geral'], m_g, row['Pos_Geral_Txt'], row['Obs'], total_time_completo), row['Pos_Geral_Txt'], row['Obs'])
+                
+                # ADICIONADO: Mini Cards de Métricas com Mês/Ano
+                st.write("") 
+                m1, m2, m3, m4 = st.columns(4)
+                with m1:
+                    st.markdown(f'<div class="mini-card"><div class="mini-card-label">📅 Dias (Mês / Ano)</div><div class="mini-card-value">{int(row["Dias"])} / {int(df_ind["Dias"].sum())}</div></div>', unsafe_allow_html=True)
+                with m2:
+                    st.markdown(f'<div class="mini-card"><div class="mini-card-label">🤝 Ações Sociais (Mês / Ano)</div><div class="mini-card-value">{int(row["Acoes_Sociais"])} / {int(df_ind["Acoes_Sociais"].sum())}</div></div>', unsafe_allow_html=True)
+                with m3:
+                    st.markdown(f'<div class="mini-card"><div class="mini-card-label">⏳ Voluntariado (Mês / Ano)</div><div class="mini-card-value">{int(row["Horas_Voluntariado"])}h / {int(df_ind["Horas_Voluntariado"].sum())}h</div></div>', unsafe_allow_html=True)
+                with m4:
+                    st.markdown(f'<div class="mini-card"><div class="mini-card-label">🛠️ Suporte (Mês / Ano)</div><div class="mini-card-value">{int(row["Suporte"])} / {int(df_ind["Suporte"].sum())}</div></div>', unsafe_allow_html=True)
 
                 st.divider()
                 df_graf = df_ind[df_ind['Pontos']>0].copy()
                 df_graf['Mês'] = pd.Categorical(df_graf['Mês'], categories=MESES_ORDEM, ordered=True)
                 df_graf = df_graf.sort_values('Mês')
                 
-                def config_fig(fig, title, col=None, is_geral=False):
+                def config_fig(fig, title, col=None, is_geral=False, is_rank=True):
                     fig.update_xaxes(categoryorder='array', categoryarray=MESES_ORDEM, range=[-0.5, 11.5])
-                    fig.update_layout(title=title, height=380, plot_bgcolor='white')
-                    if col: # Aplica cores dinâmicas apenas nos gráficos de Ranking
+                    fig.update_layout(title=title, height=400, plot_bgcolor='white', margin=dict(t=100, b=40, l=40, r=40))
+                    if is_rank:
+                        y_max = df_graf[col].max() if not df_graf.empty else 38
+                        fig.update_yaxes(autorange="reversed", range=[y_max + 2, 0.1])
                         def obter_clrs():
                             lista = []
                             for _, lin in df_graf.iterrows():
-                                m_ref = lin['Mês']
-                                df_ref = df_master[df_master['Mês'] == m_ref].copy()
+                                m_ref = lin['Mês']; df_ref = df_master[df_master['Mês'] == m_ref].copy()
                                 df_ref['is_cinza'] = df_ref.apply(lambda r: any(x in (str(r['Pos_Mes_Txt'])+str(r['Obs'])).lower() for x in ["férias","ferias","atestado","licença"]), axis=1)
                                 atv = total_time_completo if is_geral else len(df_ref[~df_ref['is_cinza']])
                                 lista.append(get_status_color(lin[col], 1, lin['Pos_Mes_Txt'], lin['Obs'], atv))
                             return lista
                         fig.update_traces(marker=dict(size=12, color=obter_clrs()), line=dict(color=DELL_BLUE, width=3))
-                    else: # Gráficos de Pontos e Casos (Cor fixa Dell)
-                        fig.update_traces(line=dict(color=DELL_BLUE, width=3), marker=dict(size=10, color=DELL_BLUE))
+                    else:
+                        y_val_max = df_graf[col].max() if not df_graf.empty else 100
+                        fig.update_yaxes(range=[0, y_val_max * 1.3])
+                        fig.update_traces(line_color=DELL_BLUE, marker=dict(size=10, color=DELL_BLUE))
                     return fig
 
                 f_s = dict(size=15, color="black", family="Arial Black")
-                
                 r1, r2 = st.columns(2)
                 with r1:
-                    fig1 = go.Figure(go.Scatter(x=df_graf['Mês'], y=df_graf['Pos_Mes'], mode='markers+lines+text', text=df_graf['Pos_Mes'].astype(int), textposition="top right", textfont=f_s))
-                    fig1.update_yaxes(autorange="reversed")
+                    fig1 = go.Figure(go.Scatter(x=df_graf['Mês'], y=df_graf['Pos_Mes'], mode='markers+lines+text', text=df_graf['Pos_Mes'].astype(int), textposition="top center", textfont=f_s))
                     st.plotly_chart(config_fig(fig1, "Ranking Mensal (Jan-Dez)", 'Pos_Mes'), use_container_width=True)
                 with r2:
-                    fig2 = go.Figure(go.Scatter(x=df_graf['Mês'], y=df_graf['Pos_Geral'], mode='markers+lines+text', text=df_graf['Pos_Geral'].astype(int), textposition="top right", textfont=f_s))
-                    fig2.update_yaxes(autorange="reversed")
+                    fig2 = go.Figure(go.Scatter(x=df_graf['Mês'], y=df_graf['Pos_Geral'], mode='markers+lines+text', text=df_graf['Pos_Geral'].astype(int), textposition="top center", textfont=f_s))
                     st.plotly_chart(config_fig(fig2, "Ranking Geral (Jan-Dez)", 'Pos_Geral', is_geral=True), use_container_width=True)
-
-                # --- ACRÉSCIMO CIRÚRGICO: GRÁFICOS DE PONTOS E CASOS ---
+                
                 g1, g2 = st.columns(2)
                 with g1:
                     fig3 = px.line(df_graf, x='Mês', y='Pontos', markers=True, text='Pontos', title="Evolução de Pontos")
-                    fig3.update_traces(textposition="top right", textfont=f_s)
-                    st.plotly_chart(config_fig(fig3, "Evolução de Pontos"), use_container_width=True)
+                    fig3.update_traces(textposition="top center", textfont=f_s)
+                    st.plotly_chart(config_fig(fig3, "Evolução de Pontos", col='Pontos', is_rank=False), use_container_width=True)
                 with g2:
                     fig4 = px.line(df_graf, x='Mês', y='Casos', markers=True, text='Casos', title="Volume de Casos")
-                    fig4.update_traces(textposition="top right", textfont=f_s)
-                    st.plotly_chart(config_fig(fig4, "Volume de Casos"), use_container_width=True)
+                    fig4.update_traces(textposition="top center", textfont=f_s)
+                    st.plotly_chart(config_fig(fig4, "Volume de Casos", col='Casos', is_rank=False), use_container_width=True)
 
 # --- ABA 2 ---
 with aba_equipe:
