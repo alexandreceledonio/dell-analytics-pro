@@ -85,7 +85,6 @@ st.markdown(f"""
 
     .welcome-card {{ background: white; border-radius: 15px; padding: 20px; border: 1px solid #E5E7EB; height: 340px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); overflow: hidden; }}
     .welcome-card-title {{ color: {DELL_BLUE}; font-weight: 800; font-size: 16px; margin-bottom: 12px; text-transform: uppercase; }}
-    .welcome-card-value {{ font-size: 58px; font-weight: 800; color: #111827; margin: 15px 0; }}
     .list-item {{ font-size: 14px; padding: 6px 0; border-bottom: 1px solid #F3F4F6; display: flex; justify-content: space-between; align-items: center; }}
 
     .card-premium {{ background: white; border-radius: 12px; height: 180px; border: 1px solid #E5E7EB; display: flex; overflow: hidden; margin-bottom: 1rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }}
@@ -115,16 +114,16 @@ st.markdown(f"""
     
     .info-tag {{ background: #E1EFFE; color: {DELL_BLUE}; font-size: 14px; font-weight: 600; padding: 5px 12px; border-radius: 6px; margin-right: 10px; }}
 
-    /* ESTILO DO PAINEL DE ALERTA ESCALONADO */
+    /* ESTILOS DO PAINEL DE ALERTA ESCALONADO V4 */
     .alert-container {{ background: white; border-radius: 15px; padding: 20px; border: 1px solid #FEE2E2; height: 340px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); }}
-    .alert-header {{ color: #EF4444; font-weight: 800; font-size: 16px; margin-bottom: 10px; text-transform: uppercase; }}
-    .alert-row {{ padding: 10px 0; border-bottom: 1px solid #FEE2E2; }}
-    .alert-name {{ font-weight: 700; color: #111827; font-size: 13px; display: block; margin-bottom: 5px; }}
-    .alert-status {{ font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; margin-bottom: 5px; display: inline-block; }}
+    .alert-header {{ color: #EF4444; font-weight: 800; font-size: 15px; margin-bottom: 10px; text-transform: uppercase; }}
+    .alert-row {{ padding: 12px 0; border-bottom: 1px solid #FEE2E2; }}
+    .alert-name {{ font-weight: 700; color: #111827; font-size: 13px; display: block; }}
+    .alert-status {{ font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 4px; margin-top: 5px; display: inline-block; }}
     .status-atencao {{ background: #FEF3C7; color: #92400E; }}
-    .status-chamada {{ background: #FEE2E2; color: #B91C1C; border: 1px solid #EF4444; }}
-    .alert-pills {{ display: flex; gap: 4px; }}
-    .alert-pill {{ background: #EF4444; color: white; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 700; }}
+    .status-chamada {{ background: #FEE2E2; color: #B91C1C; }}
+    .status-regime {{ background: #111827; color: #FFFFFF; border: 1px solid #EF4444; }}
+    .alert-pill {{ background: #EF4444; color: white; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 700; margin-right: 3px; margin-top: 5px; display: inline-block; }}
     </style>
 """, unsafe_allow_html=True)
 
@@ -181,14 +180,13 @@ def carregar_dados_equipe_completa():
                 all_data.append(df)
     return pd.concat(all_data) if all_data else pd.DataFrame()
 
-# Lógica mestre de cores das bolinhas (Centralizada para gráficos e alertas)
 def get_status_color(pos, media, txt="", obs="", total_ativos=38):
     comb = (str(txt) + str(obs)).lower()
-    if any(x in comb for x in ["férias", "ferias", "atestado", "licença"]): return "#94A3B8" # CINZA
+    if any(x in comb for x in ["férias", "ferias", "atestado", "licença"]): return "#94A3B8"
     if pos == 0 or media == 0: return "#94A3B8"
-    if 1 <= pos <= 8: return "#10B981" # VERDE
-    if pos > (total_ativos - 4): return "#EF4444" # VERMELHO
-    return "#F59E0B" # AMARELO
+    if 1 <= pos <= 8: return "#10B981"
+    if pos > (total_ativos - 4): return "#EF4444"
+    return "#F59E0B"
 
 def render_premium_card(label, pos, media, trend_val="", delta=0, color="#94A3B8", txt="", obs=""):
     comb = (str(txt) + str(obs)).lower().strip()
@@ -216,6 +214,14 @@ def render_premium_card(label, pos, media, trend_val="", delta=0, color="#94A3B8
 aba_individual, aba_equipe = st.tabs(["👤 Performance Individual", "👥 Panorama da Equipe"])
 df_master = carregar_dados_equipe_completa()
 
+# IDENTIFICAÇÃO AUTOMÁTICA DO MÊS ATUAL NO BANCO
+u_idx_db = 0
+if not df_master.empty:
+    meses_val = df_master[df_master['Pontos'] > 0]['Mês'].unique()
+    for i, m in enumerate(MESES_ORDEM):
+        if m in meses_val: u_idx_db = i
+MES_REFERENCIA = MESES_ORDEM[u_idx_db]
+
 with aba_individual:
     c1, c2, c3 = st.columns([2.5, 2, 2])
     with c1:
@@ -225,7 +231,7 @@ with aba_individual:
         mapa_arq = {f.replace(".xlsx", "").replace("_", " ").title(): f for f in arquivos_ind}
         colab_sel = st.selectbox("👤 Selecionar Colaborador", ["Selecione..."] + list(mapa_arq.keys()), key="f_colab")
     with c3:
-        mes_sel_ind = st.selectbox("📅 Mês de Análise", MESES_ORDEM, index=0, key="f_mes_ind")
+        mes_sel_ind = st.selectbox("📅 Mês de Análise", MESES_ORDEM, index=u_idx_db, key="f_mes_ind")
 
     st.markdown(f'''
         <div class="header-instruction">
@@ -243,48 +249,44 @@ with aba_individual:
                 html_t = "".join([f'<div class="list-item"><span>{t}</span><b>{v}</b></div>' for t,v in turmas.items()])
                 st.markdown(f'<div class="welcome-card"><div class="welcome-card-title">👥 Equipe por Turma</div>{html_t}</div>', unsafe_allow_html=True)
             
-            # --- ESPAÇO CENTRAL: ALERTA DE PRODUTIVIDADE COM LÓGICA DAS BOLINHAS ---
+            # --- ESPAÇO CENTRAL: ALERTA DE PRODUTIVIDADE (LÓGICA DAS BOLINHAS + ESCALONAMENTO + RESET) ---
             with w2:
                 alertas_html = ""
                 nomes_unicos = df_master['Nome_Exibicao'].unique()
-                idx_mes_sel = MESES_ORDEM.index(mes_sel_ind)
-                meses_hist = [m.capitalize() for m in MESES_ORDEM[:idx_mes_sel+1]]
+                meses_hist = [m.capitalize() for m in MESES_ORDEM[:u_idx_db+1]]
 
                 for nome in nomes_unicos:
                     dados_n = df_master[df_master['Nome_Exibicao'] == nome].copy()
-                    meses_vermelhos_nome = []
+                    vermelhos_seguidos = []
                     
-                    for m_check in meses_hist:
+                    # Varre do mês mais recente (u_idx_db) para trás
+                    for m_check in reversed(meses_hist):
                         linha = dados_n[dados_n['Mês'] == m_check]
                         if not linha.empty:
                             r = linha.iloc[0]
-                            # Calcula a cor exata da bolinha para este mês
-                            df_ref_mes = df_master[df_master['Mês'] == m_check].copy()
-                            df_ref_mes['is_cinza'] = df_ref_mes.apply(lambda row: any(x in (str(row['Pos_Mes_Txt'])+str(row['Obs'])).lower() for x in ["férias","ferias","atestado","licença"]), axis=1)
-                            atv = len(df_ref_mes[~df_ref_mes['is_cinza']])
-                            
+                            # Calcula a cor exata da bolinha seguindo a regra Master
                             media_m = r['Pontos']/r['Dias'] if r['Dias']>0 else 0
-                            cor_bolinha = get_status_color(r['Pos_Geral'], media_m, r['Pos_Geral_Txt'], r['Obs'], 38) # Regra do Geral
+                            cor_bolinha = get_status_color(r['Pos_Geral'], media_m, r['Pos_Geral_Txt'], r['Obs'], 38)
                             
                             if cor_bolinha == "#EF4444":
-                                meses_vermelhos_nome.append(m_check[:3])
+                                vermelhos_seguidos.append(m_check[:3])
+                            else:
+                                break # RESET AUTOMÁTICO: Se o mês atual ou anterior não for vermelho, a sequência quebra
+                    
+                    if len(vermelhos_seguidos) >= 2:
+                        pills = "".join([f'<span class="alert-pill">{m}</span>' for m in reversed(vermelhos_seguidos)])
+                        if len(vermelhos_seguidos) >= 4:
+                            status = '<span class="alert-status status-regime">🏢 MUDAR REGIME DE TRABALHO</span>'
+                        elif len(vermelhos_seguidos) == 3:
+                            status = '<span class="alert-status status-chamada">🚨 CHAMAR PARA CONVERSA</span>'
+                        else:
+                            status = '<span class="alert-status status-atencao">⚠️ ATENÇÃO: Possível Conversa</span>'
+                        alertas_html += f'<div class="alert-row"><span class="alert-name">{nome[:18]}</span>{status}<br>{pills}</div>'
 
-                    if len(meses_vermelhos_nome) >= 3:
-                        status = '<span class="alert-status status-chamada">🚨 CHAMAR PARA CONVERSA</span>'
-                        pills = "".join([f'<span class="alert-pill">{m}</span>' for m in meses_vermelhos_nome[-3:]])
-                        alertas_html += f'<div class="alert-row"><span class="alert-name">{nome[:18]}</span>{status}<div class="alert-pills">{pills}</div></div>'
-                    elif len(meses_vermelhos_nome) == 2:
-                        status = '<span class="alert-status status-atencao">⚠️ ATENÇÃO: Possível Conversa</span>'
-                        pills = "".join([f'<span class="alert-pill">{m}</span>' for m in meses_vermelhos_nome[-2:]])
-                        alertas_html += f'<div class="alert-row"><span class="alert-name">{nome[:18]}</span>{status}<div class="alert-pills">{pills}</div></div>'
-
-                if not alertas_html:
-                    alertas_html = "<div style='color:#10B981; font-size:14px; margin-top:20px;'>✅ Produtividade em dia.</div>"
-                
                 st.markdown(f'''
                     <div class="alert-container">
-                        <div class="alert-header">⚠️ ALERTA DE PRODUTIVIDADE</div>
-                        <div style="overflow-y: auto; height: 260px;">{alertas_html}</div>
+                        <div class="alert-header">⚠️ ALERTA DE PRODUTIVIDADE ({MES_REFERENCIA})</div>
+                        <div style="overflow-y: auto; height: 260px;">{alertas_html if alertas_html else "✅ Produtividade em dia."}</div>
                     </div>
                 ''', unsafe_allow_html=True)
 
@@ -300,7 +302,7 @@ with aba_individual:
                 html_r = "".join([f'<div class="list-item"><span style="color:#EF4444;">{n[:18]}</span><b>{v:.2f}</b></div>' for n,v in zip(ultimos['Nome_Exibicao'], ultimos['Media'])])
                 st.markdown(f'<div class="welcome-card"><div class="welcome-card-title">⚠️ Últimos do Ranking Geral</div>{html_r}</div>', unsafe_allow_html=True)
     else:
-        # PERMANECE IGUAL (BASE MASTER INDIVIDUAL)
+        # --- PERFIL INDIVIDUAL (BASE MASTER PRESERVADA) ---
         df_ind, nome_f, badge, turma, pcd = carregar_dados_colaborador(mapa_arq[colab_sel])
         if df_ind is not None:
             df_mes_total = df_master[df_master['Mês'] == mes_sel_ind.capitalize()].copy()
@@ -344,12 +346,13 @@ with aba_individual:
                 with m2:
                     st.markdown(f'<div class="mini-card"><div class="mini-card-label">🤝 Ações Sociais (Mês / Ano)</div><div class="mini-card-value">{int(row["Acoes_Sociais"])} / {int(df_ind["Acoes_Sociais"].sum())}</div></div>', unsafe_allow_html=True)
                 with m3:
-                    st.markdown(f'<div class="mini-card"><div class="mini-card-label">⏳ Voluntariado (Mês / Ano)</div><div class="mini-card-value">{int(df_ind["Horas_Voluntariado"].sum())}h</div></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="mini-card"><div class="mini-card-label">⏳ Voluntariado (Mês / Ano)</div><div class="mini-card-value">{int(row["Horas_Voluntariado"].sum())}h</div></div>', unsafe_allow_html=True)
                 with m4:
                     st.markdown(f'<div class="mini-card"><div class="mini-card-label">🛠️ Suporte (Mês / Ano)</div><div class="mini-card-value">{int(df_ind["Suporte"].sum())}</div></div>', unsafe_allow_html=True)
 
                 st.divider()
                 
+                # --- GRÁFICOS: AJUSTE DE EIXO X (JANEIRO A DEZEMBRO) ---
                 df_graf = df_ind[df_ind['Pontos']>0].copy()
                 df_graf['Mês'] = pd.Categorical(df_graf['Mês'], categories=MESES_ORDEM, ordered=True)
                 df_graf = df_graf.sort_values('Mês')
@@ -357,6 +360,7 @@ with aba_individual:
                 def config_fig(fig, title, col=None, is_geral=False, is_rank=True):
                     fig.update_xaxes(categoryorder='array', categoryarray=MESES_ORDEM, range=[-0.5, 11.5], showgrid=True)
                     fig.update_layout(title=title, height=400, plot_bgcolor='white', margin=dict(t=80, b=40, l=40, r=40))
+                    
                     if is_rank:
                         y_max = df_graf[col].max() if not df_graf.empty else 38
                         fig.update_yaxes(autorange="reversed", range=[y_max + 2, -1.5])
@@ -394,13 +398,13 @@ with aba_individual:
                     fig4.update_traces(textposition="bottom center", textfont=f_s)
                     st.plotly_chart(config_fig(fig4, "Volume de Casos", col='Casos', is_rank=False), use_container_width=True)
 
-# --- ABA 2 ---
+# --- ABA 2: PANORAMA DA EQUIPE (DINÂMICO) ---
 with aba_equipe:
     ce1, ce2, ce3 = st.columns([1.5, 2.2, 2.2])
     with ce1:
         if os.path.exists(LOGO_PATH): st.image(LOGO_PATH, width=350)
-    with ce2: mes_eq_g = st.selectbox("🏆 Mês Ranking Geral", MESES_ORDEM, index=0, key="f_mes_eq_g")
-    with ce3: mes_eq_m = st.selectbox("📅 Mês Ranking Mensal", MESES_ORDEM, index=0, key="f_mes_eq_m")
+    with ce2: mes_eq_g = st.selectbox("🏆 Mês Ranking Geral", MESES_ORDEM, index=u_idx_db, key="f_mes_eq_g")
+    with ce3: mes_eq_m = st.selectbox("📅 Mês Ranking Mensal", MESES_ORDEM, index=u_idx_db, key="f_mes_eq_m")
     st.divider()
     if not df_master.empty:
         col_g, col_m = st.columns(2)
