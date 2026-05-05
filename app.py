@@ -83,6 +83,11 @@ st.markdown(f"""
     }}
     .user-tag {{ background: {DELL_BLUE}; color: white; padding: 5px 15px; border-radius: 20px; font-weight: 600; font-size: 14px; }}
 
+    .welcome-card {{ background: white; border-radius: 15px; padding: 20px; border: 1px solid #E5E7EB; height: 340px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); overflow: hidden; }}
+    .welcome-card-title {{ color: {DELL_BLUE}; font-weight: 800; font-size: 16px; margin-bottom: 12px; text-transform: uppercase; }}
+    .welcome-card-value {{ font-size: 58px; font-weight: 800; color: #111827; margin: 15px 0; }}
+    .list-item {{ font-size: 14px; padding: 6px 0; border-bottom: 1px solid #F3F4F6; display: flex; justify-content: space-between; align-items: center; }}
+
     .card-premium {{ background: white; border-radius: 12px; height: 180px; border: 1px solid #E5E7EB; display: flex; overflow: hidden; margin-bottom: 1rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }}
     .status-bar {{ width: 12px; height: 100%; }}
     .card-content {{ padding: 25px; flex-grow: 1; display: flex; flex-direction: column; justify-content: center; }}
@@ -217,7 +222,32 @@ with aba_individual:
         </div>
     ''', unsafe_allow_html=True)
 
-    if colab_sel != "Selecione...":
+    if colab_sel == "Selecione...":
+        # --- RESTAURAÇÃO DOS CARDS DE HEALTH (INICIAL) ---
+        if not df_master.empty:
+            df_mes_atu = df_master[df_master['Mês'] == mes_sel_ind.capitalize()]
+            w1, w2, w3, w4 = st.columns(4)
+            with w1:
+                turmas = df_mes_atu.drop_duplicates('Nome_Exibicao')['Turma_Exibicao'].value_counts().sort_index()
+                html_t = "".join([f'<div class="list-item"><span>{t}</span><b>{v}</b></div>' for t,v in turmas.items()])
+                st.markdown(f'<div class="welcome-card"><div class="welcome-card-title">👥 Equipe por Turma</div>{html_t}</div>', unsafe_allow_html=True)
+            with w2:
+                total_p = len(df_master.drop_duplicates('Nome_Exibicao'))
+                afastados_no_mes = df_mes_atu[df_mes_atu.apply(lambda r: any(x in (str(r['Pos_Mes_Txt'])+str(r['Obs'])).lower() for x in ["férias","ferias","atestado","licença"]), axis=1)]
+                num_a = len(afastados_no_mes.drop_duplicates('Nome_Exibicao'))
+                st.markdown(f'<div class="welcome-card"><div class="welcome-card-title">🩺 Health Check ({mes_sel_ind})</div><div class="welcome-card-value">{ ((total_p-num_a)/total_p*100) if total_p>0 else 0:.0f}%</div>Ativos: {total_p-num_a}<br>Afastados: {num_a}</div>', unsafe_allow_html=True)
+            with w3:
+                pcds = df_mes_atu.drop_duplicates('Nome_Exibicao')['PCD_Tipo'].value_counts()
+                html_p = "".join([f'<div class="list-item"><span>{p}</span><b>{v}</b></div>' for p,v in pcds.items() if p.upper() not in ["NÃO","NA","N/A","NO"]])
+                st.markdown(f'<div class="welcome-card"><div class="welcome-card-title">♿ PCD por Categoria</div>{html_p if html_p else "Sem registros."}</div>', unsafe_allow_html=True)
+            with w4:
+                rank_d = df_master.groupby('Nome_Exibicao').apply(lambda x: x['Pontos'].sum()/x['Dias'].sum() if x['Dias'].sum()>0 else 0).sort_values().reset_index()
+                rank_d.columns = ['Nome_Exibicao', 'Media']
+                ultimos = rank_d[rank_d['Media']>0].head(4).copy()
+                ultimos = ultimos.sort_values(by='Media', ascending=False)
+                html_r = "".join([f'<div class="list-item"><span style="color:#EF4444;">{n[:18]}</span><b>{v:.2f}</b></div>' for n,v in zip(ultimos['Nome_Exibicao'], ultimos['Media'])])
+                st.markdown(f'<div class="welcome-card"><div class="welcome-card-title">⚠️ Últimos do Ranking Geral</div>{html_r}</div>', unsafe_allow_html=True)
+    else:
         df_ind, nome_f, badge, turma, pcd = carregar_dados_colaborador(mapa_arq[colab_sel])
         if df_ind is not None:
             df_mes_total = df_master[df_master['Mês'] == mes_sel_ind.capitalize()].copy()
@@ -250,12 +280,10 @@ with aba_individual:
                 st.markdown(f'<div><span class="info-tag">🆔 {badge}</span><span class="info-tag">👥 {turma}</span></div>', unsafe_allow_html=True)
                 st.divider()
 
-                # RESTAURAÇÃO: Cards Principais Lado a Lado (Layout Base)
                 col_c1, col_c2 = st.columns(2)
                 with col_c1: render_premium_card("Ranking Mensal", row['Pos_Mes'], m_m, t_m, d_m, get_status_color(row['Pos_Mes'], m_m, row['Pos_Mes_Txt'], row['Obs'], total_ativos_mes), row['Pos_Mes_Txt'], row['Obs'])
                 with col_c2: render_premium_card("Ranking Geral (Acumulado)", row['Pos_Geral'], m_g, t_g, d_g, get_status_color(row['Pos_Geral'], m_g, row['Pos_Geral_Txt'], row['Obs'], total_time_completo), row['Pos_Geral_Txt'], row['Obs'])
                 
-                # ADICIONADO: Mini Cards de Métricas com Mês/Ano
                 st.write("") 
                 m1, m2, m3, m4 = st.columns(4)
                 with m1:
